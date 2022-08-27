@@ -21,6 +21,9 @@ all_sprites = pygame.sprite.Group()
 all_sprites.add(spider)
 all_sprites.add(platform1)
 
+platforms = pygame.sprite.Group()
+platforms.add(platform1)
+
 # CODE
 
 running = True
@@ -28,16 +31,19 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False  # Exiting the while loop
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                spider.jump(platforms)
 
-        displaysurface.fill(params.WHITE)
-        for entity in all_sprites:
-            displaysurface.blit(entity.surf, entity.rect)
+    displaysurface.fill(params.WHITE)
 
-        #old_pos = spider.get_pos()
-        spider.move()
+    spider.move()
+    spider.update(platforms)
+    for entity in all_sprites:
+        displaysurface.blit(entity.surf, entity.rect)
 
-        pygame.display.update()
-        FramePerSec.tick(params.FPS)
+    pygame.display.update()
+    FramePerSec.tick(params.FPS)
 
 pygame.quit()
 sys.exit()
