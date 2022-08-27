@@ -29,10 +29,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False  # Exiting the while loop
 
+        displaysurface.fill(params.WHITE)
         for entity in all_sprites:
             displaysurface.blit(entity.surf, entity.rect)
 
-        old_pos = spider.get_pos()
+        #old_pos = spider.get_pos()
         spider.move()
 
         pygame.display.update()

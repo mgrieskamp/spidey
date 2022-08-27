@@ -15,7 +15,7 @@ class Player(pygame.sprite.Sprite):
         self.acc = params.vec(0, 0)
 
     def get_pos(self):
-        return self.pos
+        return self.pos.x, self.pos.y
 
     def move(self):
         self.acc = params.vec(0, 0)
