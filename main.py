@@ -1,3 +1,4 @@
+import random
 import sys
 import pygame
 from pygame.locals import *
@@ -15,14 +16,22 @@ displaysurface.fill(params.WHITE)
 pygame.display.set_caption("Game")
 
 spider = player.Player()
-platform1 = platforms.platform()
+platform1 = pygame.sprite.Sprite()
+platform1.surf = pygame.Surface((params.WIDTH, 20))
+platform1.surf.fill((255, 0, 0))
+platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
 
 all_sprites = pygame.sprite.Group()
 all_sprites.add(spider)
 all_sprites.add(platform1)
 
-platforms = pygame.sprite.Group()
-platforms.add(platform1)
+plats = pygame.sprite.Group()
+plats.add(platform1)
+
+for x in range(random.randint(4, 6)):
+    pl = platforms.Platform()
+    plats.add(pl)
+    all_sprites.add(pl)
 
 # CODE
 
@@ -33,14 +42,22 @@ while running:
             running = False  # Exiting the while loop
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                spider.jump(platforms)
+                spider.jump(plats)
 
     displaysurface.fill(params.WHITE)
 
     spider.move()
-    spider.update(platforms)
+    spider.update(plats)
     for entity in all_sprites:
         displaysurface.blit(entity.surf, entity.rect)
+
+    if spider.rect.top <= params.HEIGHT / 3:
+        spider.pos.y += abs(spider.vel.y)
+        for pl in plats:
+            pl.rect.y += abs(spider.vel.y)
+            if pl.rect.top >= params.HEIGHT:
+                pl.kill()
+        platforms.plat_gen(plats, all_sprites)
 
     pygame.display.update()
     FramePerSec.tick(params.FPS)

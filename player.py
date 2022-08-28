@@ -43,7 +43,7 @@ class Player(pygame.sprite.Sprite):
     def jump(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if hits:
-            self.vel.y = -8
+            self.vel.y = -15
 
     def update(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
