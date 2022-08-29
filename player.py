@@ -31,14 +31,16 @@ class Player(pygame.sprite.Sprite):
         if pressed_keys[K_d]:
             self.acc.x = params.ACC
 
+        old_posx = self.pos.x
+
         self.acc.x += self.vel.x * params.FRIC
         self.vel += self.acc
         self.pos += self.vel + 0.5 * self.acc
 
         if self.pos.x > params.WIDTH:
-            self.pos.x = 0
+            self.pos.x = old_posx
         if self.pos.x < 0:
-            self.pos.x = params.WIDTH
+            self.pos.x = old_posx
 
         self.rect.midbottom = self.pos
 

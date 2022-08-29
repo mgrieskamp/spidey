@@ -28,8 +28,12 @@ all_sprites.add(platform1)
 plats = pygame.sprite.Group()
 plats.add(platform1)
 
-for x in range(random.randint(4, 6)):
+for x in range(random.randint(5, 6)):
     pl = platforms.Platform()
+    close = True
+    while close:
+        pl = platforms.Platform()
+        close = platforms.check(pl, plats)
     plats.add(pl)
     all_sprites.add(pl)
 
@@ -37,6 +41,8 @@ for x in range(random.randint(4, 6)):
 
 running = True
 while running:
+    spider.update(plats)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False  # Exiting the while loop
@@ -47,20 +53,19 @@ while running:
             if event.key == pygame.K_SPACE:
                 spider.release_jump()
 
-    displaysurface.fill(params.WHITE)
-
-    spider.move()
-    spider.update(plats)
-    for entity in all_sprites:
-        displaysurface.blit(entity.surf, entity.rect)
-
     if spider.rect.top <= params.HEIGHT / 3:
         spider.pos.y += abs(spider.vel.y)
         for pl in plats:
             pl.rect.y += abs(spider.vel.y)
             if pl.rect.top >= params.HEIGHT:
                 pl.kill()
-        platforms.plat_gen(plats, all_sprites)
+
+    platforms.plat_gen(plats, all_sprites)
+    displaysurface.fill(params.WHITE)
+
+    spider.move()
+    for entity in all_sprites:
+        displaysurface.blit(entity.surf, entity.rect)
 
     pygame.display.update()
     FramePerSec.tick(params.FPS)
