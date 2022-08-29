@@ -43,6 +43,9 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 spider.jump(plats)
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_SPACE:
+                spider.release_jump()
 
     displaysurface.fill(params.WHITE)
 

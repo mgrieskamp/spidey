@@ -15,6 +15,8 @@ class Player(pygame.sprite.Sprite):
         self.pos = vec((10, 385))
         self.vel = vec(0, 0)
         self.acc = vec(0, 0)
+        # CHECK JUMP STATE
+        self.jumping = False
 
     def get_pos(self):
         return self.pos.x, self.pos.y
@@ -42,15 +44,23 @@ class Player(pygame.sprite.Sprite):
 
     def jump(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
-        if hits:
+        if hits and not self.jumping:
             self.vel.y = -15
+            self.jumping = True
+
+    def release_jump(self):
+        if self.jumping:
+            if self.vel.y < -3:
+                self.vel.y = -3
 
     def update(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if self.vel.y > 0:
             if hits:
-                self.vel.y = 0
-                self.pos.y = hits[0].rect.top + 1
+                if self.pos.y < hits[0].rect.bottom:
+                    self.pos.y = hits[0].rect.top + 1
+                    self.vel.y = 0
+                    self.jumping = False
 
     def draw(self, surface):
         surface.blit(self.surf, self.rect)
