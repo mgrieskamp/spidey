@@ -79,7 +79,7 @@ while running:
             if pl.rect.top > params.HEIGHT:
                 pl.kill()
 
-    # Generate new random platforms as player moves up (BUGG!!!!)
+    # Generate new random platforms as player moves up
     platforms.plat_gen(plats, all_sprites)
     displaysurface.fill(params.BLACK)
 

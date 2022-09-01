@@ -24,19 +24,19 @@ class Platform(pygame.sprite.Sprite):
                 self.rect.left = params.WIDTH
 
 
-def plat_gen(plats, all):
+def plat_gen(plats, all_sprites):
     while len(plats) < 7:
         width = random.randrange(50, 100)
         pl = Platform()
         close = True
 
-        while close: # BUG!!!!!!!!!
+        while close: # fixed freeze ? (height < -50)
             pl = Platform()
-            pl.rect.center = (random.randrange(0, params.WIDTH - width), random.randrange(-50, 0))
+            pl.rect.center = (random.randrange(0, params.WIDTH - width), random.randrange(-100, 0))
             close = check(pl, plats)
 
         plats.add(pl)
-        all.add(pl)
+        all_sprites.add(pl)
 
 
 def check(plat, all_plats):
