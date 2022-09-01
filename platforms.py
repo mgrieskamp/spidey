@@ -11,6 +11,17 @@ class Platform(pygame.sprite.Sprite):
         self.surf.fill((0, 255, 0))
         self.rect = self.surf.get_rect(
             center=(random.randint(0, params.WIDTH - 10), random.randint(0, params.HEIGHT - 30)))
+        self.speed = random.randint(-1, 1)
+        self.moving = True
+        self.point = True
+
+    def move(self):
+        if self.moving:
+            self.rect.move_ip(self.speed, 0)
+            if self.speed > 0 and self.rect.left > params.WIDTH:
+                self.rect.right = 0
+            if self.speed < 0 and self.rect.right < 0:
+                self.rect.left = params.WIDTH
 
 
 def plat_gen(plats, all):
@@ -19,9 +30,9 @@ def plat_gen(plats, all):
         pl = Platform()
         close = True
 
-        while close:
+        while close: # BUG!!!!!!!!!
             pl = Platform()
-            pl.rect.center = (random.randrange(0, params.WIDTH-width), random.randrange(-50, 0))
+            pl.rect.center = (random.randrange(0, params.WIDTH - width), random.randrange(-50, 0))
             close = check(pl, plats)
 
         plats.add(pl)

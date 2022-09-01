@@ -7,16 +7,18 @@ vec = pygame.math.Vector2
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        # PLAYER SHAPE
+        # Player shape
         self.surf = pygame.Surface((params.PLAYER_WIDTH, params.PLAYER_HEIGHT))
         self.surf.fill((128, 255, 40))
         self.rect = self.surf.get_rect()
-        # PLAYER POSITION
+        # Player position
         self.pos = vec((10, 385))
         self.vel = vec(0, 0)
         self.acc = vec(0, 0)
-        # CHECK JUMP STATE
+        # Check jump state
         self.jumping = False
+        # Score state
+        self.score = 0
 
     def get_pos(self):
         return self.pos.x, self.pos.y
@@ -60,6 +62,9 @@ class Player(pygame.sprite.Sprite):
         if self.vel.y > 0:
             if hits:
                 if self.pos.y < hits[0].rect.bottom:
+                    if hits[0].point == True:  # suspicious reference
+                        hits[0].point = False
+                        self.score += 1
                     self.pos.y = hits[0].rect.top + 1
                     self.vel.y = 0
                     self.jumping = False

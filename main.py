@@ -5,6 +5,7 @@ from pygame.locals import *
 import player
 import platforms
 import params
+import time
 
 pygame.init()
 vec = pygame.math.Vector2  # 2 for two dimensional
@@ -15,19 +16,25 @@ displaysurface = pygame.display.set_mode((params.WIDTH, params.HEIGHT))
 displaysurface.fill(params.WHITE)
 pygame.display.set_caption("Game")
 
+# Initiate player and starting platform
 spider = player.Player()
-platform1 = pygame.sprite.Sprite()
+platform1 = platforms.Platform()
 platform1.surf = pygame.Surface((params.WIDTH, 20))
 platform1.surf.fill((255, 0, 0))
 platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
+platform1.moving = False
+platform1.point = False
 
+# Collection of all sprites on screen
 all_sprites = pygame.sprite.Group()
 all_sprites.add(spider)
 all_sprites.add(platform1)
 
+# Separate platform sprite group
 plats = pygame.sprite.Group()
 plats.add(platform1)
 
+# Initialize starting screen random platforms
 for x in range(random.randint(5, 6)):
     pl = platforms.Platform()
     close = True
@@ -37,15 +44,15 @@ for x in range(random.randint(5, 6)):
     plats.add(pl)
     all_sprites.add(pl)
 
-# CODE
-
+# Begin game loop
 running = True
 while running:
     spider.update(plats)
 
+    # Track player inputs
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False  # Exiting the while loop
+            running = False  # Exit the while loop
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 spider.jump(plats)
@@ -53,19 +60,38 @@ while running:
             if event.key == pygame.K_SPACE:
                 spider.release_jump()
 
+    # Initiate game over once the player falls off the screen
+    if spider.rect.top > params.HEIGHT:
+        for sprite in all_sprites:
+            sprite.kill()
+            time.sleep(1)
+            displaysurface.fill(params.WHITE)
+            pygame.display.update()
+            time.sleep(1)
+            pygame.quit()
+            sys.exit()
+
+    # Screen moving (in y-axis) and kills bottom platforms
     if spider.rect.top <= params.HEIGHT / 3:
         spider.pos.y += abs(spider.vel.y)
         for pl in plats:
             pl.rect.y += abs(spider.vel.y)
-            if pl.rect.top >= params.HEIGHT:
+            if pl.rect.top > params.HEIGHT:
                 pl.kill()
 
+    # Generate new random platforms as player moves up (BUGG!!!!)
     platforms.plat_gen(plats, all_sprites)
-    displaysurface.fill(params.WHITE)
+    displaysurface.fill(params.BLACK)
 
-    spider.move()
+    # Set game font and display game score
+    game_font_type = pygame.font.SysFont("Verdana", 20)
+    game_score = game_font_type.render(str(spider.score), True, (123, 255, 0))
+    displaysurface.blit(game_score, (params.WIDTH / 2, 10))
+
+    # Loops through all sprites on screen
     for entity in all_sprites:
         displaysurface.blit(entity.surf, entity.rect)
+        entity.move()
 
     pygame.display.update()
     FramePerSec.tick(params.FPS)
