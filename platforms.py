@@ -23,6 +23,9 @@ class Platform(pygame.sprite.Sprite):
             if self.speed < 0 and self.rect.right < 0:
                 self.rect.left = params.WIDTH
 
+    def draw(self, surface):
+        surface.blit(self.surf, self.rect)
+
 
 def plat_gen(plats, all_sprites):
     while len(plats) < 7:

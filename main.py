@@ -5,6 +5,7 @@ from pygame.locals import *
 import player
 import platforms
 import params
+import spritesheet
 import time
 
 pygame.init()
@@ -15,6 +16,7 @@ FramePerSec = pygame.time.Clock()
 displaysurface = pygame.display.set_mode((params.WIDTH, params.HEIGHT))
 displaysurface.fill(params.WHITE)
 pygame.display.set_caption("Game")
+
 
 # Initiate player and starting platform
 spider = player.Player()
@@ -47,6 +49,7 @@ for x in range(random.randint(5, 6)):
 # Begin game loop
 running = True
 while running:
+
     spider.update(plats)
 
     # Track player inputs
@@ -90,8 +93,9 @@ while running:
 
     # Loops through all sprites on screen
     for entity in all_sprites:
-        displaysurface.blit(entity.surf, entity.rect)
+        entity.draw(displaysurface)
         entity.move()
+
 
     pygame.display.update()
     FramePerSec.tick(params.FPS)

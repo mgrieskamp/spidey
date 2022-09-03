@@ -1,24 +1,44 @@
 import pygame
 from pygame.locals import *
 import params
+import spritesheet
 
 vec = pygame.math.Vector2
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        # Player shape
-        self.surf = pygame.Surface((params.PLAYER_WIDTH, params.PLAYER_HEIGHT))
-        self.surf.fill((128, 255, 40))
+        # Player appearance
+        self.spritesheet_image = pygame.image.load('spider_spritesheet.png').convert_alpha()
+        self.spritesheet = spritesheet.SpriteSheet(self.spritesheet_image)
+        self.surf = self.spritesheet.get_image(0, 0, 32, 32, 3)
         self.rect = self.surf.get_rect()
         # Player position
         self.pos = vec((10, 385))
         self.vel = vec(0, 0)
         self.acc = vec(0, 0)
-        # Check jump state
-        self.jumping = False
         # Score state
         self.score = 0
+        # General animation
+        self.cooldown = 100
+        # Idle left animation
+        self.idle_last_update = pygame.time.get_ticks()
+        self.idle_l = False
+        self.idle_l_list = []
+        self.idle_steps = 5
+        self.idle_frame = 0
+        # Idle right animation
+        self.idle_r = True
+        self.idle_r_list = []
+
+        for x in range(self.idle_steps):
+            self.idle_l_list.append(self.spritesheet.get_image(x, 0, 32, 32, 3))
+            self.idle_r_list.append(self.spritesheet.get_image(x, 8, 32, 32, 3))
+
+        # Jump animation
+        self.jumping = False
+
+
 
     def get_pos(self):
         return self.pos.x, self.pos.y
@@ -46,6 +66,13 @@ class Player(pygame.sprite.Sprite):
 
         self.rect.midbottom = self.pos
 
+        if self.vel.x < 0:
+            self.idle_l = True
+            self.idle_r = False
+        else:
+            self.idle_r = True
+            self.idle_l = False
+
     def jump(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if hits and not self.jumping:
@@ -58,6 +85,13 @@ class Player(pygame.sprite.Sprite):
                 self.vel.y = -3
 
     def update(self, sprite_group):
+        if self.idle_l:
+            self.idle_last_update, self.idle_frame = \
+                self.update_animation(self.idle_l_list, self.idle_frame, self.idle_last_update)
+        elif self.idle_r:
+            self.idle_last_update, self.idle_frame = \
+                self.update_animation(self.idle_r_list, self.idle_frame, self.idle_last_update)
+
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if self.vel.y > 0:
             if hits:
@@ -70,4 +104,16 @@ class Player(pygame.sprite.Sprite):
                     self.jumping = False
 
     def draw(self, surface):
-        surface.blit(self.surf, self.rect)
+        if self.idle_l:
+            surface.blit(self.idle_l_list[self.idle_frame], self.rect)
+        elif self.idle_r:
+            surface.blit(self.idle_r_list[self.idle_frame], self.rect)
+
+    def update_animation(self, animation_list, frame, last_update):
+        current_time = pygame.time.get_ticks()
+        if current_time - last_update >= self.cooldown:
+            frame += 1
+            last_update = current_time
+            if frame >= len(animation_list):
+                frame = 0
+        return last_update, frame
