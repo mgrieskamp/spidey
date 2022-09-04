@@ -25,6 +25,9 @@ class Platform(pygame.sprite.Sprite):
             if self.speed < 0 and self.rect.right < 0:
                 self.rect.left = params.WIDTH
 
+    def get_center_pos(self):
+        return self.rect.center
+
     def draw(self, surface):
         surface.blit(self.surf, self.rect)
 
@@ -35,7 +38,7 @@ def plat_gen(plats, all_sprites):
         pl = Platform()
         close = True
 
-        while close: # fixed freeze ? (height < -50)
+        while close: # fixed freeze ? (height not < -50)
             pl = Platform()
             pl.rect.center = (random.randrange(0, params.WIDTH - width), random.randrange(-100, 0))
             close = check(pl, plats)
