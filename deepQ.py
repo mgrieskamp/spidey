@@ -65,3 +65,33 @@ class deepQAgent(torch.nn.Module):
         """
         self.reward = 0
         return self.reward
+
+    def replay_memory(self):
+        pass
+
+    def store_transition(self):
+        pass
+
+    def execute_timestep(self):
+        pass
+
+    """
+    (Pseudocode)
+    Deep Q-learning with experience replay:
+    
+    Initialize replay memory D to capacity N
+    Initialize action-value function Q with random weights
+    for episode 1, M do
+        Initialize state s_t
+        for t = 1, T do
+            With probability e select a random action a_t
+            otherwise select a_t = max_a Q*(s_t, a; theta)
+            Execute action a_t and observe reward r_t and state s_t+1
+            Store transition (s_t, a_t, r_t, s_t+1) in D
+            Set s_t+1 = s_t
+            Sample random minibatch of transitions (s_t, a_t, r_t, s_t+1) from D
+            Set y_j = r_j for terminal s_t+1 || Set y_j = r_j + gamma max_a' Q(s_t+1, a'; theta) for non-terminal s_t+1
+            Perform gradient descent step on (y_j - Q(s_t, a_j; theta))^2
+        end for
+    end for
+    """
