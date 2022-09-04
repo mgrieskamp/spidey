@@ -7,22 +7,31 @@ import platforms
 import params
 import spritesheet
 import time
+import itertools
 
 pygame.init()
 vec = pygame.math.Vector2  # 2 for two dimensional
 
 FramePerSec = pygame.time.Clock()
 
+brick = pygame.image.load("background.png")
 displaysurface = pygame.display.set_mode((params.WIDTH, params.HEIGHT))
-displaysurface.fill(params.WHITE)
 pygame.display.set_caption("Game")
+
+
+def set_background():
+    displaysurface.fill(params.WHITE)
+    brick_width, brick_height = brick.get_width(), brick.get_height()
+    for x, y in itertools.product(range(0, params.WIDTH, brick_width), range(0, params.HEIGHT, brick_height)):
+        displaysurface.blit(brick, (x, y))
 
 
 # Initiate player and starting platform
 spider = player.Player()
+plat_image = pygame.image.load('wood_platform.png')
+plat_image.set_colorkey((0,0,0))
 platform1 = platforms.Platform()
-platform1.surf = pygame.Surface((params.WIDTH, 20))
-platform1.surf.fill((255, 0, 0))
+platform1.surf = pygame.transform.scale(plat_image, (params.WIDTH, 20))
 platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
 platform1.moving = False
 platform1.point = False
@@ -49,7 +58,7 @@ for x in range(random.randint(5, 6)):
 # Begin game loop
 running = True
 while running:
-
+    set_background()
     spider.update(plats)
 
     # Track player inputs
@@ -84,7 +93,7 @@ while running:
 
     # Generate new random platforms as player moves up
     platforms.plat_gen(plats, all_sprites)
-    displaysurface.fill(params.BLACK)
+    # displaysurface.fill(params.BLACK)
 
     # Set game font and display game score
     game_font_type = pygame.font.SysFont("Verdana", 20)
@@ -95,7 +104,6 @@ while running:
     for entity in all_sprites:
         entity.draw(displaysurface)
         entity.move()
-
 
     pygame.display.update()
     FramePerSec.tick(params.FPS)
