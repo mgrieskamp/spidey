@@ -70,7 +70,7 @@ while running:
                 spider.jump(plats)
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE:
-                spider.release_jump()
+                spider.release_jump(plats)
 
     # Initiate game over once the player falls off the screen
     if spider.rect.top > params.HEIGHT:

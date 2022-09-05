@@ -5,6 +5,7 @@ import spritesheet
 
 vec = pygame.math.Vector2
 
+
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
@@ -51,7 +52,19 @@ class Player(pygame.sprite.Sprite):
         # Jump animation
         self.jumping = False
 
+        self.jumping_l_list = []
+        self.jumping_r_list = []
+        self.jumping_frame = 0
+        self.jumping_last_update = pygame.time.get_ticks()
+        self.jumping_l = False
+        self.jumping_r = False
+        self.end_jump = False
+        self.mid_jump = False
+        self.start_jump = False
 
+        for x in range(0, 9):
+            self.jumping_l_list.append(self.spritesheet.get_image(x, 2, 32, 32, 3))
+            self.jumping_r_list.append(self.spritesheet.get_image(x, 10, 32, 32, 3))
 
     def get_pos(self):
         return self.pos.x, self.pos.y
@@ -98,25 +111,44 @@ class Player(pygame.sprite.Sprite):
         if hits and not self.jumping:
             self.vel.y = -15
             self.jumping = True
+            self.start_jump = True
+            self.jumping_frame = 0
 
-    def release_jump(self):
+    def release_jump(self, sprite_group):
         if self.jumping:
             if self.vel.y < -3:
                 self.vel.y = -3
+            self.jumping_frame = 3
+            self.start_jump = False
+            self.mid_jump = True
 
     def update(self, sprite_group):
-        if self.walk_l:
+        if self.start_jump:
+            if self.idle_l:
+                self.jumping_last_update, self.jumping_frame = \
+                    self.update_animation(self.jumping_l_list, self.jumping_frame, self.jumping_last_update, 3, True)
+            else:
+                self.jumping_last_update, self.jumping_frame = \
+                    self.update_animation(self.jumping_r_list, self.jumping_frame, self.jumping_last_update, 3, True)
+        elif self.mid_jump:
+            if self.idle_l:
+                self.jumping_last_update, self.jumping_frame = \
+                    self.update_animation(self.jumping_l_list, self.jumping_frame, self.jumping_last_update, 6, True)
+            else:
+                self.jumping_last_update, self.jumping_frame = \
+                    self.update_animation(self.jumping_r_list, self.jumping_frame, self.jumping_last_update, 6, True)
+        elif self.walk_l:
             self.walk_last_update, self.walk_frame = \
-                self.update_animation(self.walk_l_list, self.walk_frame, self.walk_last_update)
+                self.update_animation(self.walk_l_list, self.walk_frame, self.walk_last_update, len(self.walk_l_list))
         elif self.walk_r:
             self.walk_last_update, self.walk_frame = \
-                self.update_animation(self.walk_r_list, self.walk_frame, self.walk_last_update)
+                self.update_animation(self.walk_r_list, self.walk_frame, self.walk_last_update, len(self.walk_r_list))
         elif self.idle_l:
             self.idle_last_update, self.idle_frame = \
-                self.update_animation(self.idle_l_list, self.idle_frame, self.idle_last_update)
+                self.update_animation(self.idle_l_list, self.idle_frame, self.idle_last_update, len(self.idle_l_list))
         elif self.idle_r:
             self.idle_last_update, self.idle_frame = \
-                self.update_animation(self.idle_r_list, self.idle_frame, self.idle_last_update)
+                self.update_animation(self.idle_r_list, self.idle_frame, self.idle_last_update, len(self.idle_r_list))
 
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if self.vel.y > 0:
@@ -128,9 +160,25 @@ class Player(pygame.sprite.Sprite):
                     self.pos.y = hits[0].rect.top + 1
                     self.vel.y = 0
                     self.jumping = False
+                    self.mid_jump = False
+                    self.jumping_frame = 6
+                    if self.jumping_l:
+                        self.jumping_last_update, self.jumping_frame = \
+                            self.update_animation(self.jumping_l_list, self.jumping_frame, self.jumping_last_update, 9,
+                                                  True)
+                    else:
+                        self.jumping_last_update, self.jumping_frame = \
+                            self.update_animation(self.jumping_r_list, self.jumping_frame, self.jumping_last_update, 9,
+                                                  True)
+                    self.jumping_l = False
+                    self.jumping_r = False
 
     def draw(self, surface):
-        if self.walk_l:
+        if self.jumping_l:
+            surface.blit(self.jumping_l_list[self.jumping_frame], self.rect)
+        elif self.jumping_r:
+            surface.blit(self.jumping_r_list[self.jumping_frame], self.rect)
+        elif self.walk_l:
             surface.blit(self.walk_l_list[self.walk_frame], self.rect)
         elif self.walk_r:
             surface.blit(self.walk_r_list[self.walk_frame], self.rect)
@@ -139,11 +187,13 @@ class Player(pygame.sprite.Sprite):
         elif self.idle_r:
             surface.blit(self.idle_r_list[self.idle_frame], self.rect)
 
-    def update_animation(self, animation_list, frame, last_update):
+    def update_animation(self, animation_list, frame, last_update, frame_limit, stop=False):
         current_time = pygame.time.get_ticks()
         if current_time - last_update >= self.cooldown:
             frame += 1
             last_update = current_time
-            if frame >= len(animation_list):
+            if frame >= frame_limit:
+                if stop:
+                    return last_update, frame
                 frame = 0
         return last_update, frame
