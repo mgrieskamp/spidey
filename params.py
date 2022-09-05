@@ -9,6 +9,7 @@ PLAYER_HEIGHT = 30
 ACC = 0.5
 FRIC = -0.12
 FPS = 60
+MIN_VEL = 0.1
 
 BLUE = (0, 0, 255)
 RED = (255, 0, 0)

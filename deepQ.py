@@ -52,19 +52,14 @@ class deepQAgent(torch.nn.Module):
             0) Player position
             1) Player velocity
             2) Player acceleration
-            3) Platform 1 location
-            4) Platform 2 location
-            5) Platform 3 location
-            6) Platform 4 location
-            7) Platform 5 location
-            8) Player is moving left
-            9) Player is moving right
-            10) Player is jumping
-            11) Player is doing nothing
-
+            3) List of existing platform locations, each element is a tuple (midleft, center, midright)
         """
         physics = spider.get_movement_coords()
         state = [physics[0], physics[1], physics[2]]
+        plat_locs = []
+        for platform in plats:
+            plat_locs.append(platform.get_pos)
+        state.append(plat_locs)
         pass
 
     def set_reward(self, spider):
