@@ -74,7 +74,7 @@ class deepQAgent(torch.nn.Module):
             +10 when spider lands on platform
             -1 otherwise
         """
-        self.reward = 0
+        self.reward = 1
         return self.reward
 
     def replay_memory(self):
