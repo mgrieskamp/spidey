@@ -51,10 +51,8 @@ class Player(pygame.sprite.Sprite):
         # Jump animation
         self.jumping = False
 
-
-
-    def get_pos(self):
-        return self.pos.x, self.pos.y
+    def get_movement_coords(self):
+        return self.pos, self.vel, self.acc
 
     def move(self):
         self.acc = vec(0, 0.5)

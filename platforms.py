@@ -25,8 +25,8 @@ class Platform(pygame.sprite.Sprite):
             if self.speed < 0 and self.rect.right < 0:
                 self.rect.left = params.WIDTH
 
-    def get_center_pos(self):
-        return self.rect.center
+    def get_pos(self):
+        return self.rect.midleft, self.rect.center, self.rect.midright
 
     def draw(self, surface):
         surface.blit(self.surf, self.rect)

@@ -52,14 +52,25 @@ class deepQAgent(torch.nn.Module):
             0) Player position
             1) Player velocity
             2) Player acceleration
+            3) Platform 1 location
+            4) Platform 2 location
+            5) Platform 3 location
+            6) Platform 4 location
+            7) Platform 5 location
+            8) Player is moving left
+            9) Player is moving right
+            10) Player is jumping
+            11) Player is doing nothing
 
         """
+        physics = spider.get_movement_coords()
+        state = [physics[0], physics[1], physics[2]]
         pass
 
     def set_reward(self, spider):
         """
         Return the reward:
-            -1000 when game over.
+            -100 when game over.
             +10 when spider lands on platform
             -1 otherwise
         """
