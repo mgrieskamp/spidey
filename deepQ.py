@@ -58,7 +58,7 @@ class deepQAgent(torch.nn.Module):
         state = [physics[0], physics[1], physics[2]]
         plat_locs = []
         for platform in plats:
-            plat_locs.append(platform.get_pos)
+            plat_locs.append(platform.get_pos())
         state.append(plat_locs)
         pass
 
