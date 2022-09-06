@@ -109,10 +109,12 @@ class deepQAgent(torch.nn.Module):
             target = reward
         else:
             target = reward + self.gamma * torch.max(self.forward(next_state_tensor)[0])
-        output = self.forward(state_tensor)
-        target.detach()
+        output_layer = self.forward(state_tensor)
+        target_layer = output_layer.clone()
+        target_layer[0][np.argmax(action)] = target
+        target_layer.detach()
         self.optimizer.zero_grad()
-        loss = F.mse_loss(output, target)
+        loss = F.mse_loss(output_layer, target_layer)
         loss.backward()
         self.optimizer.step()
 
