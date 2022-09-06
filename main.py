@@ -93,7 +93,6 @@ while running:
 
     # Generate new random platforms as player moves up
     platforms.plat_gen(plats, all_sprites)
-    # displaysurface.fill(params.BLACK)
 
     # Set game font and display game score
     game_font_type = pygame.font.SysFont("Verdana", 20)

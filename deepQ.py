@@ -48,29 +48,41 @@ class deepQAgent(torch.nn.Module):
 
     def get_state(self, spider, plats):
         """
-        Numpy array of ? values:
-            0) Player position
-            1) Player velocity
-            2) Player acceleration
-            3) Platform 1
-            4) Platform 2
-            5) Platform 3
-            6) Platform 4
-            7) Platform 5
+        Numpy array of 36 values:
+            0) Player position x
+            1) Player position y
+            2) Player velocity x
+            3) Player velocity y
+            4) Player acceleration x
+            5) Player acceleration y
+            6) Platform 1 midleft x
+            7) Platform 1 midleft y
+            8) Platform 1 center x
+            9) Platform 1 center y
+            10) Platform 1 midright x
+            11) Platform 1 midright y
+            12) ... repeat until platform 5
         """
         physics = spider.get_movement_coords()
-        state = [physics[0], physics[1], physics[2]]
+        state = [physics[0].x, physics[0].y, physics[1].x, physics[1].y, physics[2].x, physics[2].y]
         plat_locs = []
         plat_distances = []
         for platform in plats:
             plat_locs.append(platform.get_pos())
-            plat_distances.append(np.linalg.norm(platform.get_pos() - physics[0]))
+            plat_distances.append(np.linalg.norm(platform.get_pos()[1] - physics[0]))
         # add 5 closest platforms to state
         while len(plat_locs) > 5:
             index = np.argmax(plat_distances)
             plat_distances.pop(index)
             plat_locs.pop(index)
-        state.append(plat_locs)
+        # add midleft, center, midright x-y coords to state
+        for plat in plat_locs:
+            state.append(plat[0][0])
+            state.append(plat[0][1])
+            state.append(plat[1][0])
+            state.append(plat[1][1])
+            state.append(plat[2][0])
+            state.append(plat[2][1])
         return np.array(state)
 
     def set_reward(self, spider):
