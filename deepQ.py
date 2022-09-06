@@ -61,7 +61,7 @@ class deepQAgent(torch.nn.Module):
             9) Platform 1 center y
             10) Platform 1 midright x
             11) Platform 1 midright y
-            12) ... repeat until platform 5
+            ..) ... repeat until platform 5
         """
         physics = spider.get_movement_coords()
         state = [physics[0].x, physics[0].y, physics[1].x, physics[1].y, physics[2].x, physics[2].y]
@@ -85,14 +85,19 @@ class deepQAgent(torch.nn.Module):
             state.append(plat[2][1])
         return np.array(state)
 
-    def set_reward(self, spider):
+    def set_reward(self, spider, game_over):
         """
         Return the reward:
             -100 when game over.
             +10 when spider lands on platform
             +0 otherwise
         """
-        self.reward = 1
+        self.reward = 0
+        if game_over:
+            self.reward -= 100
+            return self.reward
+        if spider.new_landing:
+            self.reward += 10
         return self.reward
 
     def replay_memory(self, memory, batch_size):

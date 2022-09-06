@@ -66,6 +66,9 @@ class Player(pygame.sprite.Sprite):
             self.jumping_l_list.append(self.spritesheet.get_image(x, 2, 32, 32, 3))
             self.jumping_r_list.append(self.spritesheet.get_image(x, 10, 32, 32, 3))
 
+        # Check if points should be given for landing on a new platform
+        self.new_landing = False
+
     def get_movement_coords(self):
         return self.pos, self.vel, self.acc
 
@@ -150,6 +153,7 @@ class Player(pygame.sprite.Sprite):
             self.idle_last_update, self.idle_frame = \
                 self.update_animation(self.idle_r_list, self.idle_frame, self.idle_last_update, len(self.idle_r_list))
 
+        self.new_landing = False
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if self.vel.y > 0:
             if hits:
@@ -157,6 +161,7 @@ class Player(pygame.sprite.Sprite):
                     if hits[0].point == True:  # suspicious reference
                         hits[0].point = False
                         self.score += 1
+                        self.new_landing = True
                     self.pos.y = hits[0].rect.top + 1
                     self.vel.y = 0
                     self.jumping = False
