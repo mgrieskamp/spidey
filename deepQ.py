@@ -52,33 +52,62 @@ class deepQAgent(torch.nn.Module):
             0) Player position
             1) Player velocity
             2) Player acceleration
-            3) List of existing platform locations, each element is a tuple (midleft, center, midright)
+            3) Platform 1
+            4) Platform 2
+            5) Platform 3
+            6) Platform 4
+            7) Platform 5
         """
         physics = spider.get_movement_coords()
         state = [physics[0], physics[1], physics[2]]
         plat_locs = []
+        plat_distances = []
         for platform in plats:
             plat_locs.append(platform.get_pos())
+            plat_distances.append(np.linalg.norm(platform.get_pos() - physics[0]))
+        # add 5 closest platforms to state
+        while len(plat_locs) > 5:
+            index = np.argmax(plat_distances)
+            plat_distances.pop(index)
+            plat_locs.pop(index)
         state.append(plat_locs)
-        pass
+        return np.array(state)
 
     def set_reward(self, spider):
         """
         Return the reward:
             -100 when game over.
             +10 when spider lands on platform
-            -1 otherwise
+            +0 otherwise
         """
         self.reward = 1
         return self.reward
 
-    def replay_memory(self):
-        pass
+    def replay_memory(self, memory, batch_size):
+        if len(memory) > batch_size:
+            minibatch = random.sample(memory, batch_size)
+        else:
+            minibatch = memory
+        for (state, action, reward, next_state, terminal) in minibatch:
+            self.train()
+            torch.set_grad_enabled(True)
+            next_state_tensor = torch.from_numpy(next_state)
+            state_tensor = torch.from_numpy(state)
+            if terminal:
+                target = reward
+            else:
+                target = reward + self.gamma * torch.max(self.forward(next_state_tensor)[0])
+            output = self.forward(state_tensor)
+            target.detach()
+            self.optimizer.zero_grad()
+            loss = F.mse_loss(output, target)
+            loss.backward()
+            self.optimizer.step()
 
-    def store_transition(self):
-        pass
+    def store_transition(self, state, action, reward, next_state, terminal):
+        self.memory.append((state, action, reward, next_state, terminal))
 
-    def execute_timestep(self):
+    def train_short_term(self):
         pass
 
     """
@@ -95,9 +124,19 @@ class deepQAgent(torch.nn.Module):
             Execute action a_t and observe reward r_t and state s_t+1
             Store transition (s_t, a_t, r_t, s_t+1) in D
             Set s_t+1 = s_t
-            Sample random minibatch of transitions (s_t, a_t, r_t, s_t+1) from D
-            Set y_j = r_j for terminal s_t+1 || Set y_j = r_j + gamma max_a' Q(s_t+1, a'; theta) for non-terminal s_t+1
-            Perform gradient descent step on (y_j - Q(s_t, a_j; theta))^2
+            Sample random minibatch of transitions (s_t, a_t, r_t, s_t+1) from D (deepQAgent.replay_new(D, batch_size)
         end for
     end for
+    
+    
+    replay_new(memory, batch_size):
+        For every transition j in minibatch:
+            if s_j+1 terminal:
+                y_j = r_j
+            else:
+                # get target value; i.e. max possible predicted future reward by choosing best possible next action
+                y_j = r_j + gamma max_a' Q(s_t+1, a'; theta)
+            # Perform gradient descent step on (y_j - Q(s_t, a_j; theta))^2 
+            Calculate loss L = 1/N sum((Q(s_j, i_j) - y_j)^2)
+            Update Q using SGD by minimizing loss L
     """
