@@ -100,32 +100,33 @@ class deepQAgent(torch.nn.Module):
             self.reward += 10
         return self.reward
 
+    def train_short_term(self, state, action, reward, next_state, terminal):
+        self.train()
+        torch.set_grad_enabled(True)
+        next_state_tensor = torch.from_numpy(next_state)
+        state_tensor = torch.from_numpy(state)
+        if terminal:
+            target = reward
+        else:
+            target = reward + self.gamma * torch.max(self.forward(next_state_tensor)[0])
+        output = self.forward(state_tensor)
+        target.detach()
+        self.optimizer.zero_grad()
+        loss = F.mse_loss(output, target)
+        loss.backward()
+        self.optimizer.step()
+
     def replay_memory(self, memory, batch_size):
         if len(memory) > batch_size:
             minibatch = random.sample(memory, batch_size)
         else:
             minibatch = memory
         for (state, action, reward, next_state, terminal) in minibatch:
-            self.train()
-            torch.set_grad_enabled(True)
-            next_state_tensor = torch.from_numpy(next_state)
-            state_tensor = torch.from_numpy(state)
-            if terminal:
-                target = reward
-            else:
-                target = reward + self.gamma * torch.max(self.forward(next_state_tensor)[0])
-            output = self.forward(state_tensor)
-            target.detach()
-            self.optimizer.zero_grad()
-            loss = F.mse_loss(output, target)
-            loss.backward()
-            self.optimizer.step()
+            self.train_short_term(self, state, action, reward, next_state, terminal)
 
     def store_transition(self, state, action, reward, next_state, terminal):
         self.memory.append((state, action, reward, next_state, terminal))
 
-    def train_short_term(self):
-        pass
 
     """
     (Pseudocode)
