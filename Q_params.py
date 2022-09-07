@@ -9,8 +9,8 @@ params_Q['episodes'] = 250
 params_Q['memory_size'] = 2500
 params_Q['batch_size'] = 1000
 # Settings
-# params_Q['weights_path'] = 'weights/weights.h5'
-# params_Q['train'] = False
-# params_Q["test"] = True
-# params_Q['plot_score'] = True
+params_Q['weights_path'] = 'weights/weights.h5'
+params_Q['train'] = False
+params_Q["test"] = True
+params_Q['plot_score'] = True
 # params_Q['log_path'] = 'logs/scores_' + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S")) +'.txt'

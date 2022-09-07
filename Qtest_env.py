@@ -1,4 +1,6 @@
 import pygame
+
+import deepQ
 import player
 import platforms
 import params
@@ -9,6 +11,7 @@ import itertools
 from deepQ import DeepQAgent
 from random import randint
 import random
+import Q_params
 import statistics
 import torch.optim as optim
 import torch
@@ -138,6 +141,87 @@ def init_agent(game, agent, batch_size):
 
 def train_Q():
     pygame.init()
+    q_params = Q_params.params_Q
+    num_games = 0
+    scores = []
+    counter = []
+    record = 0
+    total_score = 0
+    agent = deepQ.DeepQAgent(q_params)
+    agent = agent.to(DEVICE)
+    agent.optimizer = optim.Adam(agent.parameters(), weight_decay=0, lr=q_params['learning_rate'])
+    # start game loop
+    while num_games < q_params['episodes']:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+        game = SpiderJumpGame()
+
+        # first move
+        init_agent(game, agent, q_params['batch_size'])
+        steps = 0
+
+        # play until game over or no progress for 100 steps
+        while (not game.game_over) and (steps < 100):
+            if q_params['train']:
+                # epsilon (random exploration) decreases as agent trains for longer
+                agent.epsilon = 1 - (num_games * q_params['epsilon_decay_linear'])
+            else:
+                agent.epsilon = 0.01
+
+            curr_state = agent.get_state(game.spider, game.plats)
+
+            # perform random action based on epsilon (explore) or choose action based on Q function prediction
+            curr_action = [0, 0, 0, 0, 0]
+            if random.uniform(0, 1) < agent.epsilon:
+                curr_action[randint(0, 4)] = 1
+            else:
+                with torch.no_grad():
+                    curr_state_tensor = torch.from_numpy(curr_state)
+                    pred = agent.forward(curr_state_tensor)
+                    ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
+                    to have correct input and output layer sizes (input=36 output=5) '''
+                    curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
+            do_action(game, curr_action)
+            next_state = agent.get_state(game.spider, game.plats)
+            reward = agent.set_reward(game.spider, game.game_over)
+
+            # if spider landed on platform, reset steps
+            if reward > 0:
+                steps = 0
+
+            if q_params['train']:
+                agent.train_short_term(curr_state, curr_action, reward, next_state, game.game_over)
+                agent.remember(curr_state, curr_action, reward, next_state, game.game_over)
+
+            steps += 1
+
+        num_games += 1
+        total_score += game.spider.score
+        print(f'Game {num_games}        Score: {game.spider.score}')
+        scores.append(game.spider.score)
+        counter.append(num_games)
+
+        # replay experiences
+        if q_params['train']:
+            agent.replay_memory(agent.memory, q_params['batch_size'])
+
+    # TODO: get mean and std. dev. of scores plot
+    # update model
+    if q_params['train']:
+        weights = agent.state_dict()
+        torch.save(weights, params['weights_path'])
+    if q_params['plot_score']:
+        # TODO: call plotting function
+    return total_score,
+
+
+
+
+
+
+
     pass
 
 
