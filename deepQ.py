@@ -10,7 +10,8 @@ import torch.optim as optim
 import copy
 DEVICE = 'cpu' # 'cuda' if torch.cuda.is_available() else 'cpu'
 
-class deepQAgent(torch.nn.Module):
+
+class DeepQAgent(torch.nn.Module):
     def __init__(self, params):
         super().__init__()
         self.reward = 0

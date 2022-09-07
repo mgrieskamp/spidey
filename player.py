@@ -109,6 +109,41 @@ class Player(pygame.sprite.Sprite):
             self.walk_r = True
             self.walk_l = False
 
+    def agent_move(self, action):
+        self.acc = vec(0, 0.5)
+
+        if action[0] == 1:
+            self.acc.x = -params.ACC
+        if action[1] == 1:
+            self.acc.x = params.ACC
+
+        old_posx = self.pos.x
+
+        self.acc.x += self.vel.x * params.FRIC
+        self.vel += self.acc
+        self.pos += self.vel + 0.5 * self.acc
+
+        if self.pos.x > params.WIDTH:
+            self.pos.x = old_posx
+        if self.pos.x < 0:
+            self.pos.x = old_posx
+
+        self.rect.midbottom = self.pos
+
+        if -0.2 < self.vel.x < 0.2:
+            self.walk_r = False
+            self.walk_l = False
+        elif self.vel.x < 0:
+            self.idle_l = True
+            self.idle_r = False
+            self.walk_l = True
+            self.walk_r = False
+        elif self.vel.x > 0:
+            self.idle_r = True
+            self.idle_l = False
+            self.walk_r = True
+            self.walk_l = False
+
     def jump(self, sprite_group):
         hits = pygame.sprite.spritecollide(self, sprite_group, False)
         if hits and not self.jumping:

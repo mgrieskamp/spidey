@@ -6,7 +6,7 @@ import sys
 import spritesheet
 import time
 import itertools
-from deepQ import deepQAgent
+from deepQ import DeepQAgent
 from random import randint
 import random
 import statistics
@@ -30,6 +30,8 @@ class SpiderJumpGame:
         self.plat_image.set_colorkey((0, 0, 0))
         self.background = pygame.image.load("background.png")
         self.FramePerSec = pygame.time.Clock()
+        self.font_type = pygame.font.SysFont("Verdana", 20)
+        self.game_over = False
 
 
 def set_background(displaysurface, background):
@@ -62,10 +64,7 @@ def build_start(game):
     set_start_plats(game.plat_image, game.plats, game.all_sprites)
 
 
-def init_agent(game, spider, agent, batch_size):
-    pass
-
-def run():
+def play():
     pygame.init()
     game = SpiderJumpGame()
     build_start(game)
@@ -85,6 +84,7 @@ def run():
                     game.spider.release_jump(game.plats)
         # Initiate game over once the player falls off the screen
         if game.spider.rect.top > params.HEIGHT:
+            game.game_over = True
             for sprite in game.all_sprites:
                 sprite.kill()
                 time.sleep(1)
@@ -102,9 +102,8 @@ def run():
                     pl.kill()
         # Generate new random platforms as player moves up
         platforms.plat_gen(game.plats, game.all_sprites)
-        # Set game font and display game score
-        game_font_type = pygame.font.SysFont("Verdana", 20)
-        game_score = game_font_type.render(str(game.spider.score), True, (123, 255, 0))
+        # Display game score
+        game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
         game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
         # Loops through all sprites on screen
         for entity in game.all_sprites:
@@ -116,8 +115,29 @@ def run():
     sys.exit()
 
 
+def do_action(game, action):
+    if action[0] == 1 or action[1] == 1:
+        game.spider.agent_move(action)
+    elif action[2] == 1:
+        game.spider.jump(game.plats)
+    elif action[3] == 1:
+        game.spider.release_jump(game.plats)
+    else:
+        pass
+
+
+def init_agent(game, agent, batch_size):
+    init_state1 = agent.get_state(game.spider, game.plats)
+    action = [1, 0, 0, 0, 0]
+    do_action(game, action)
+    init_state2 = agent.get_state(game.spider, game.plats)
+    init_reward = agent.set_reward(game.spider, game.game_over)
+    agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
+    agent.replay_memory(agent.memory, batch_size)
+
+
 if __name__ == '__main__':
-    run()
+    play()
 
 """
     (Pseudocode)
