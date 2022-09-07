@@ -136,6 +136,11 @@ def init_agent(game, agent, batch_size):
     agent.replay_memory(agent.memory, batch_size)
 
 
+def train_Q():
+    pygame.init()
+    pass
+
+
 if __name__ == '__main__':
     play()
 

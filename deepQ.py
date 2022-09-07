@@ -125,7 +125,7 @@ class DeepQAgent(torch.nn.Module):
         else:
             minibatch = memory
         for (state, action, reward, next_state, terminal) in minibatch:
-            self.train_short_term(self, state, action, reward, next_state, terminal)
+            self.train_short_term(state, action, reward, next_state, terminal)
 
     def store_transition(self, state, action, reward, next_state, terminal):
         self.memory.append((state, action, reward, next_state, terminal))
