@@ -163,8 +163,8 @@ def train_Q():
         init_agent(game, agent, q_params['batch_size'])
         steps = 0
 
-        # play until game over or no progress for 1000 steps
-        while (not game.game_over) and (steps < 1000):
+        # play until game over or no progress for 500 steps
+        while (not game.game_over) and (steps < 500):
 
             set_background(game.displaysurface, game.background) ##new
             game.spider.update(game.plats) ##new
