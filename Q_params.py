@@ -10,6 +10,7 @@ params_Q['memory_size'] = 2500
 params_Q['batch_size'] = 1000
 # Settings
 params_Q['weights_path'] = 'weights/weights.h5'
+params_Q['load_weights'] = False
 params_Q['train'] = False
 params_Q["test"] = True
 params_Q['plot_score'] = True

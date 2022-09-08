@@ -31,10 +31,10 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
         self.optimizer = None
         # Layers
-        self.f1 = nn.Linear(11, self.first_layer)
+        self.f1 = nn.Linear(36, self.first_layer)
         self.f2 = nn.Linear(self.first_layer, self.second_layer)
         self.f3 = nn.Linear(self.second_layer, self.third_layer)
-        self.f4 = nn.Linear(self.third_layer, 3)
+        self.f4 = nn.Linear(self.third_layer, 5)
         # weights
         if self.load_weights:
             self.model = self.load_state_dict(torch.load(self.weights))
@@ -46,6 +46,7 @@ class DeepQAgent(torch.nn.Module):
         x = F.relu(self.f3(x))
         x = F.softmax(self.f4(x), dim=-1)
         return x
+
 
     def get_state(self, spider, plats):
         """
@@ -95,7 +96,7 @@ class DeepQAgent(torch.nn.Module):
         """
         self.reward = 0
         if game_over:
-            self.reward -= 100
+            self.reward -= 10
             return self.reward
         if spider.new_landing:
             self.reward += 10
@@ -109,10 +110,10 @@ class DeepQAgent(torch.nn.Module):
         if terminal:
             target = reward
         else:
-            target = reward + self.gamma * torch.max(self.forward(next_state_tensor)[0])
-        output_layer = self.forward(state_tensor)
+            target = reward + self.gamma * torch.max(self.forward(next_state_tensor.float())[0]) #float?
+        output_layer = self.forward(state_tensor.float()) #float?
         target_layer = output_layer.clone()
-        target_layer[0][np.argmax(action)] = target
+        target_layer[np.argmax(action)] = target  #0-dim tensor?
         target_layer.detach()
         self.optimizer.zero_grad()
         loss = F.mse_loss(output_layer, target_layer)

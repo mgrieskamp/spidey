@@ -1,5 +1,4 @@
 import pygame
-
 import deepQ
 import player
 import platforms
@@ -133,6 +132,7 @@ def init_agent(game, agent, batch_size):
     init_state1 = agent.get_state(game.spider, game.plats)
     action = [1, 0, 0, 0, 0]
     do_action(game, action)
+    game.spider.update(game.plats) ##new
     init_state2 = agent.get_state(game.spider, game.plats)
     init_reward = agent.set_reward(game.spider, game.game_over)
     agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
@@ -157,13 +157,18 @@ def train_Q():
                 pygame.quit()
                 quit()
         game = SpiderJumpGame()
+        build_start(game)
 
         # first move
         init_agent(game, agent, q_params['batch_size'])
         steps = 0
 
-        # play until game over or no progress for 100 steps
-        while (not game.game_over) and (steps < 100):
+        # play until game over or no progress for 1000 steps
+        while (not game.game_over) and (steps < 1000):
+
+            set_background(game.displaysurface, game.background) ##new
+            game.spider.update(game.plats) ##new
+
             if q_params['train']:
                 # epsilon (random exploration) decreases as agent trains for longer
                 agent.epsilon = 1 - (num_games * q_params['epsilon_decay_linear'])
@@ -179,11 +184,34 @@ def train_Q():
             else:
                 with torch.no_grad():
                     curr_state_tensor = torch.from_numpy(curr_state)
-                    pred = agent.forward(curr_state_tensor)
+                    pred = agent.forward(curr_state_tensor.float()) #float?
                     ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
                     to have correct input and output layer sizes (input=36 output=5) '''
                     curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
             do_action(game, curr_action)
+
+            if game.spider.rect.top > params.HEIGHT:
+                game.game_over = True
+
+            if game.spider.rect.top <= params.HEIGHT / 3:
+                game.spider.pos.y += abs(game.spider.vel.y)
+                for pl in game.plats:
+                    pl.rect.y += abs(game.spider.vel.y)
+                    if pl.rect.top > params.HEIGHT:
+                        pl.kill()
+
+            platforms.plat_gen(game.plats, game.all_sprites)
+
+            game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
+            game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
+
+            for entity in game.all_sprites:
+                entity.draw(game.displaysurface)
+                entity.move()
+
+            pygame.display.update()
+            game.FramePerSec.tick(params.FPS)
+
             next_state = agent.get_state(game.spider, game.plats)
             reward = agent.set_reward(game.spider, game.game_over)
 
@@ -196,6 +224,7 @@ def train_Q():
                 agent.remember(curr_state, curr_action, reward, next_state, game.game_over)
 
             steps += 1
+            print(steps)
 
         num_games += 1
         total_score += game.spider.score
@@ -213,20 +242,14 @@ def train_Q():
         weights = agent.state_dict()
         torch.save(weights, params['weights_path'])
     if q_params['plot_score']:
-        # TODO: call plotting function
-    return total_score,
-
-
-
-
-
-
-
-    pass
+        pass
+    # TODO: call plotting function
+    return total_score
 
 
 if __name__ == '__main__':
-    play()
+    # play()
+    train_Q()
 
 """
     (Pseudocode)
