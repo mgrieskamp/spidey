@@ -96,7 +96,7 @@ class DeepQAgent(torch.nn.Module):
         """
         self.reward = 0
         if game_over:
-            self.reward -= 10
+            self.reward -= 1
             return self.reward
         if spider.new_landing:
             self.reward += 10
