@@ -221,7 +221,7 @@ def train_Q():
 
             if q_params['train']:
                 agent.train_short_term(curr_state, curr_action, reward, next_state, game.game_over)
-                agent.remember(curr_state, curr_action, reward, next_state, game.game_over)
+                agent.store_transition(curr_state, curr_action, reward, next_state, game.game_over)
 
             steps += 1
             print(steps)
