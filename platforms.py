@@ -14,7 +14,7 @@ class Platform(pygame.sprite.Sprite):
         self.rect = self.surf.get_rect(
             center=(random.randint(0, params.WIDTH - 10), random.randint(0, params.HEIGHT - 30)))
         self.speed = random.randint(-1, 1)
-        self.moving = True
+        self.moving = False
         self.point = True
 
     def move(self):

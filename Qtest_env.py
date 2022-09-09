@@ -169,7 +169,7 @@ def train_Q():
         # play until game over or no progress for 500 steps
         while (not game.game_over) and (steps < 500):
 
-            set_background(game.displaysurface, game.background) ##new
+            # set_background(game.displaysurface, game.background)
             game.spider.update(game.plats, game.play_plats) ##new
 
             if q_params['train']:
@@ -186,11 +186,11 @@ def train_Q():
                 curr_action[randint(0, 4)] = 1
             else:
                 with torch.no_grad():
-                    curr_state_tensor = torch.from_numpy(curr_state)
+                    curr_state_tensor = torch.from_numpy(curr_state).cuda()  #cuda() before every forward?
                     pred = agent.forward(curr_state_tensor.float()) #float?
                     ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
                     to have correct input and output layer sizes (input=36 output=5) '''
-                    curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
+                    curr_action[np.argmax(pred.detach().cuda().numpy())] = 1
             do_action(game, curr_action)
 
             if game.spider.rect.top > params.HEIGHT:
@@ -209,10 +209,10 @@ def train_Q():
             game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
 
             for entity in game.all_sprites:
-                entity.draw(game.displaysurface)
+                # entity.draw(game.displaysurface)
                 entity.move()
 
-            pygame.display.update()
+            # pygame.display.update()
             game.FramePerSec.tick(params.FPS)
 
             next_state = agent.get_state(game.spider, game.plats)
@@ -228,7 +228,7 @@ def train_Q():
                 agent.store_transition(curr_state, curr_action, reward, next_state, game.game_over)
 
             steps += 1
-            print(steps)
+            # print(steps)
 
         num_games += 1
         total_score += game.spider.score

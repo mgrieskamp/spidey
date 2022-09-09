@@ -99,11 +99,11 @@ class DeepQAgent(torch.nn.Module):
             self.reward -= 9
             return self.reward
         if spider.on_platform:
-            self.reward += 0.1
+            self.reward += 0
         if spider.pos.y < old_state[1]:
-            self.reward += 0.1
+            self.reward += 0
         if spider.pos.y > old_state[1]:
-            self.reward -= 0.1
+            self.reward -= 0
         if spider.new_landing:
             self.reward += 10
         return self.reward
@@ -111,8 +111,8 @@ class DeepQAgent(torch.nn.Module):
     def train_short_term(self, state, action, reward, next_state, terminal):
         self.train()
         torch.set_grad_enabled(True)
-        next_state_tensor = torch.from_numpy(next_state)
-        state_tensor = torch.from_numpy(state)
+        next_state_tensor = torch.from_numpy(next_state).cuda()
+        state_tensor = torch.from_numpy(state).cuda()
         if terminal:
             target = reward
         else:
