@@ -15,7 +15,7 @@ class Player(pygame.sprite.Sprite):
         self.surf = self.spritesheet.get_image(0, 0, 32, 32, 3)
         self.rect = self.surf.get_rect()
         # Player position
-        self.pos = vec((10, 385))
+        self.pos = vec((190, 435))
         self.vel = vec(0, 0)
         self.acc = vec(0, 0)
         # Score state
@@ -68,6 +68,8 @@ class Player(pygame.sprite.Sprite):
 
         # Check if points should be given for landing on a new platform
         self.new_landing = False
+        # Check if spider is on platform
+        self.on_platform = False
 
     def get_movement_coords(self):
         return self.pos, self.vel, self.acc
@@ -160,7 +162,7 @@ class Player(pygame.sprite.Sprite):
             self.start_jump = False
             self.mid_jump = True
 
-    def update(self, sprite_group):
+    def update(self, plats, play_plats):
         if self.start_jump:
             if self.idle_l:
                 self.jumping_last_update, self.jumping_frame = \
@@ -189,7 +191,12 @@ class Player(pygame.sprite.Sprite):
                 self.update_animation(self.idle_r_list, self.idle_frame, self.idle_last_update, len(self.idle_r_list))
 
         self.new_landing = False
-        hits = pygame.sprite.spritecollide(self, sprite_group, False)
+        self.on_platform = False
+        hits = pygame.sprite.spritecollide(self, play_plats, False)
+        if hits:
+            if self.pos.y < hits[0].rect.bottom:
+                self.on_platform = True
+        hits = pygame.sprite.spritecollide(self, plats, False)
         if self.vel.y > 0:
             if hits:
                 if self.pos.y < hits[0].rect.bottom:

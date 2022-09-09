@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import copy
-DEVICE = 'cpu' # 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 class DeepQAgent(torch.nn.Module):
@@ -87,7 +87,7 @@ class DeepQAgent(torch.nn.Module):
             state.append(plat[2][1])
         return np.array(state)
 
-    def set_reward(self, spider, game_over):
+    def set_reward(self, spider, game_over, old_state):
         """
         Return the reward:
             -100 when game over.
@@ -98,6 +98,12 @@ class DeepQAgent(torch.nn.Module):
         if game_over:
             self.reward -= 1
             return self.reward
+        if spider.on_platform:
+            self.reward += 0.1
+        if spider.pos.y < old_state[1]:
+            self.reward += 0.1
+        if spider.pos.y > old_state[1]:
+            self.reward -= 0.1
         if spider.new_landing:
             self.reward += 10
         return self.reward

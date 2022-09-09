@@ -17,7 +17,7 @@ import torch
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-DEVICE = 'cpu' # 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 class SpiderJumpGame:
@@ -28,6 +28,7 @@ class SpiderJumpGame:
         self.all_sprites = pygame.sprite.Group()
         self.all_sprites.add(self.spider)
         self.plats = pygame.sprite.Group()
+        self.play_plats = pygame.sprite.Group()
         self.plat_image = pygame.image.load('wood_platform.png')
         self.plat_image.set_colorkey((0, 0, 0))
         self.background = pygame.image.load("background.png")
@@ -43,7 +44,7 @@ def set_background(displaysurface, background):
         displaysurface.blit(background, (x, y))
 
 
-def set_start_plats(plat_image, plats, all_sprites):
+def set_start_plats(plat_image, plats, all_sprites, play_plats):
     platform1 = platforms.Platform()
     platform1.surf = pygame.transform.scale(plat_image, (params.WIDTH, 20))
     platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
@@ -57,13 +58,14 @@ def set_start_plats(plat_image, plats, all_sprites):
         while close:
             pl = platforms.Platform()
             close = platforms.check(pl, plats)
+        play_plats.add(pl)
         plats.add(pl)
         all_sprites.add(pl)
 
 
 def build_start(game):
     set_background(game.displaysurface, game.background)
-    set_start_plats(game.plat_image, game.plats, game.all_sprites)
+    set_start_plats(game.plat_image, game.plats, game.all_sprites, game.play_plats)
 
 
 def play():
@@ -73,7 +75,7 @@ def play():
     running = True
     while running:
         set_background(game.displaysurface, game.background)
-        game.spider.update(game.plats)
+        game.spider.update(game.plats, game.play_plats)
         # Track player inputs
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -132,9 +134,9 @@ def init_agent(game, agent, batch_size):
     init_state1 = agent.get_state(game.spider, game.plats)
     action = [1, 0, 0, 0, 0]
     do_action(game, action)
-    game.spider.update(game.plats) ##new
+    game.spider.update(game.plats, game.play_plats) ##new
     init_state2 = agent.get_state(game.spider, game.plats)
-    init_reward = agent.set_reward(game.spider, game.game_over)
+    init_reward = agent.set_reward(game.spider, game.game_over, init_state1)
     agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
     agent.replay_memory(agent.memory, batch_size)
 
@@ -167,7 +169,7 @@ def train_Q():
         while (not game.game_over) and (steps < 500):
 
             set_background(game.displaysurface, game.background) ##new
-            game.spider.update(game.plats) ##new
+            game.spider.update(game.plats, game.play_plats) ##new
 
             if q_params['train']:
                 # epsilon (random exploration) decreases as agent trains for longer
@@ -200,7 +202,7 @@ def train_Q():
                     if pl.rect.top > params.HEIGHT:
                         pl.kill()
 
-            platforms.plat_gen(game.plats, game.all_sprites)
+            platforms.plat_gen(game.plats, game.all_sprites, game.play_plats)
 
             game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
             game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
@@ -213,7 +215,7 @@ def train_Q():
             game.FramePerSec.tick(params.FPS)
 
             next_state = agent.get_state(game.spider, game.plats)
-            reward = agent.set_reward(game.spider, game.game_over)
+            reward = agent.set_reward(game.spider, game.game_over, curr_state)
 
             # if spider landed on platform, reset steps
             if reward > 0:

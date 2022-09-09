@@ -32,7 +32,7 @@ class Platform(pygame.sprite.Sprite):
         surface.blit(self.surf, self.rect)
 
 
-def plat_gen(plats, all_sprites):
+def plat_gen(plats, all_sprites, play_plats):
     while len(plats) < 7:
         width = random.randrange(50, 100)
         pl = Platform()
@@ -44,6 +44,7 @@ def plat_gen(plats, all_sprites):
             close = check(pl, plats)
 
         plats.add(pl)
+        play_plats.add(pl)
         all_sprites.add(pl)
 
 

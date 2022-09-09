@@ -43,6 +43,7 @@ all_sprites.add(platform1)
 
 # Separate platform sprite group
 plats = pygame.sprite.Group()
+play_plats = pygame.sprite.Group()
 plats.add(platform1)
 
 # Initialize starting screen random platforms
@@ -53,13 +54,14 @@ for x in range(random.randint(5, 6)):
         pl = platforms.Platform()
         close = platforms.check(pl, plats)
     plats.add(pl)
+    play_plats.add(pl)
     all_sprites.add(pl)
 
 # Begin game loop
 running = True
 while running:
     set_background()
-    spider.update(plats)
+    spider.update(plats, play_plats)
 
     # Track player inputs
     for event in pygame.event.get():
@@ -92,7 +94,7 @@ while running:
                 pl.kill()
 
     # Generate new random platforms as player moves up
-    platforms.plat_gen(plats, all_sprites)
+    platforms.plat_gen(plats, all_sprites, play_plats)
 
     # Set game font and display game score
     game_font_type = pygame.font.SysFont("Verdana", 20)
