@@ -31,7 +31,7 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
         self.optimizer = None
         # Layers
-        self.f1 = nn.Linear(36, self.first_layer)
+        self.f1 = nn.Linear(41, self.first_layer)
         self.f2 = nn.Linear(self.first_layer, self.second_layer)
         self.f3 = nn.Linear(self.second_layer, self.third_layer)
         self.f4 = nn.Linear(self.third_layer, 5)
@@ -49,7 +49,7 @@ class DeepQAgent(torch.nn.Module):
 
 
     def get_state(self, spider, plats):
-        """
+        """ ADD MORE STATES - WHETHER PLATFORM HAS BEEN VISITED (plat.point)
         Numpy array of 36 values:
             0) Player position x
             1) Player position y
@@ -63,6 +63,7 @@ class DeepQAgent(torch.nn.Module):
             9) Platform 1 center y
             10) Platform 1 midright x
             11) Platform 1 midright y
+            12) Platform 1 visited (1) or not visited (0) before
             ..) ... repeat until platform 5
         """
         physics = spider.get_movement_coords()
@@ -85,6 +86,7 @@ class DeepQAgent(torch.nn.Module):
             state.append(plat[1][1])
             state.append(plat[2][0])
             state.append(plat[2][1])
+            state.append(int(plat.point))
         return np.array(state)
 
     def set_reward(self, spider, game_over, old_state):
