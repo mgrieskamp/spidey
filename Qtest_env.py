@@ -164,6 +164,7 @@ def train_Q():
         # first move
         init_agent(game, agent, q_params['batch_size'])
         steps = 0
+        episode_reward = 0
 
         # play until game over or no progress for 500 steps
         while (not game.game_over) and (steps < 500):
@@ -216,6 +217,7 @@ def train_Q():
 
             next_state = agent.get_state(game.spider, game.plats)
             reward = agent.set_reward(game.spider, game.game_over, curr_state)
+            episode_reward += reward
 
             # if spider landed on platform, reset steps
             if reward > 0:
@@ -231,6 +233,7 @@ def train_Q():
         num_games += 1
         total_score += game.spider.score
         print(f'Game {num_games}        Score: {game.spider.score}')
+        print('Episode Reward: ' + str(episode_reward))
         scores.append(game.spider.score)
         counter.append(num_games)
 

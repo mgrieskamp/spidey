@@ -94,9 +94,9 @@ class DeepQAgent(torch.nn.Module):
             +10 when spider lands on platform
             -0.1 otherwise
         """
-        self.reward = -0.1
+        self.reward = 0
         if game_over:
-            self.reward -= 1
+            self.reward -= 9
             return self.reward
         if spider.on_platform:
             self.reward += 0.1
