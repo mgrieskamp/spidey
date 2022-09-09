@@ -70,14 +70,17 @@ class DeepQAgent(torch.nn.Module):
         state = [physics[0].x, physics[0].y, physics[1].x, physics[1].y, physics[2].x, physics[2].y]
         plat_locs = []
         plat_distances = []
+        closest_plats = []
         for platform in plats:
             plat_locs.append(platform.get_pos())
             plat_distances.append(np.linalg.norm(platform.get_pos()[1] - physics[0]))
+            closest_plats.append(platform)
         # add 5 closest platforms to state
         while len(plat_locs) > 5:
             index = np.argmax(plat_distances)
             plat_distances.pop(index)
             plat_locs.pop(index)
+            closest_plats.pop(index)
         # add midleft, center, midright x-y coords to state
         for plat in plat_locs:
             state.append(plat[0][0])
@@ -86,6 +89,7 @@ class DeepQAgent(torch.nn.Module):
             state.append(plat[1][1])
             state.append(plat[2][0])
             state.append(plat[2][1])
+        for plat in closest_plats:
             state.append(int(plat.point))
         return np.array(state)
 
