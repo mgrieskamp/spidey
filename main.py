@@ -47,7 +47,7 @@ play_plats = pygame.sprite.Group()
 plats.add(platform1)
 
 # Initialize starting screen random platforms
-for x in range(random.randint(5, 6)):
+for x in range(7):
     pl = platforms.Platform()
     close = True
     while close:

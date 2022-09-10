@@ -31,7 +31,7 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
         self.optimizer = None
         # Layers
-        self.f1 = nn.Linear(41, self.first_layer)
+        self.f1 = nn.Linear(24, self.first_layer)
         self.f2 = nn.Linear(self.first_layer, self.second_layer)
         self.f3 = nn.Linear(self.second_layer, self.third_layer)
         self.f4 = nn.Linear(self.third_layer, 5)
@@ -76,19 +76,19 @@ class DeepQAgent(torch.nn.Module):
             plat_distances.append(np.linalg.norm(platform.get_pos()[1] - physics[0]))
             closest_plats.append(platform)
         # add 5 closest platforms to state
-        while len(plat_locs) > 5:
+        while len(plat_locs) > 6:
             index = np.argmax(plat_distances)
             plat_distances.pop(index)
             plat_locs.pop(index)
             closest_plats.pop(index)
         # add midleft, center, midright x-y coords to state
         for plat in plat_locs:
-            state.append(plat[0][0])
-            state.append(plat[0][1])
+            # state.append(plat[0][0])
+            # state.append(plat[0][1])
             state.append(plat[1][0])
             state.append(plat[1][1])
-            state.append(plat[2][0])
-            state.append(plat[2][1])
+            # state.append(plat[2][0])
+            # state.append(plat[2][1])
         for plat in closest_plats:
             state.append(int(plat.point))
         return np.array(state)
@@ -101,9 +101,9 @@ class DeepQAgent(torch.nn.Module):
             -0.1 otherwise
         """
         self.reward = 0
-        if game_over:
-            self.reward -= 9
-            return self.reward
+        # if game_over:
+        #     self.reward -= 9
+        #     return self.reward
         if spider.on_platform:
             self.reward += 0
         if spider.pos.y < old_state[1]:
@@ -117,8 +117,8 @@ class DeepQAgent(torch.nn.Module):
     def train_short_term(self, state, action, reward, next_state, terminal):
         self.train()
         torch.set_grad_enabled(True)
-        next_state_tensor = torch.from_numpy(next_state).cuda()
-        state_tensor = torch.from_numpy(state).cuda()
+        next_state_tensor = torch.from_numpy(next_state) # .cuda()
+        state_tensor = torch.from_numpy(state) # .cuda()
         if terminal:
             target = reward
         else:

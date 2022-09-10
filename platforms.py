@@ -9,7 +9,7 @@ class Platform(pygame.sprite.Sprite):
         super().__init__()
         self.image = pygame.image.load('wood_platform.png')
         self.image.set_colorkey((0,0,0))
-        width = random.randint(50, 100)
+        width = random.randint(65, 100)
         self.surf = pygame.transform.scale(self.image, (width, 12))
         self.rect = self.surf.get_rect(
             center=(random.randint(0, params.WIDTH - 10), random.randint(0, params.HEIGHT - 30)))
@@ -26,21 +26,21 @@ class Platform(pygame.sprite.Sprite):
                 self.rect.left = params.WIDTH
 
     def get_pos(self):
-        return self.rect.midleft, self.rect.center, self.rect.midright
+        return self.rect.topleft, self.rect.midtop, self.rect.topright
 
     def draw(self, surface):
         surface.blit(self.surf, self.rect)
 
 
 def plat_gen(plats, all_sprites, play_plats):
-    while len(plats) < 7:
-        width = random.randrange(50, 100)
+    while len(plats) < 8:
+        width = random.randrange(65, 100)
         pl = Platform()
         close = True
 
         while close: # fixed freeze ? (height not < -50)
             pl = Platform()
-            pl.rect.center = (random.randrange(0, params.WIDTH - width), random.randrange(-100, 0))
+            pl.rect = pl.surf.get_rect(center=(random.randrange(0, params.WIDTH - width), random.randrange(-150, 0)))
             close = check(pl, plats)
 
         plats.add(pl)
