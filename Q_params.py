@@ -1,7 +1,7 @@
 params_Q = dict()
 # Neural Network
-params_Q['epsilon_decay_linear'] = 1/500 # exploit after 500 games
-params_Q['learning_rate'] = 0.00013629
+params_Q['epsilon_decay_linear'] = 1/100 # exploit after 500 games
+params_Q['learning_rate'] = 0.0013629
 params_Q['first_layer_size'] = 200    # neurons in the first layer
 params_Q['second_layer_size'] = 20   # neurons in the second layer
 params_Q['third_layer_size'] = 50    # neurons in the third layer

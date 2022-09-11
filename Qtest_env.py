@@ -193,8 +193,9 @@ def train_Q():
                     curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
             do_action(game, curr_action)
 
-            if game.spider.rect.top > params.HEIGHT:
+            if game.spider.rect.bottom > params.HEIGHT:
                 game.game_over = True
+                game.spider.kill()
 
             if game.spider.rect.top <= params.HEIGHT / 3:
                 game.spider.pos.y += abs(game.spider.vel.y)
@@ -228,7 +229,7 @@ def train_Q():
                 agent.store_transition(curr_state, curr_action, reward, next_state, game.game_over)
 
             steps += 1
-            print(steps)
+            # print(steps)
 
         num_games += 1
         total_score += game.spider.score

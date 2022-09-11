@@ -74,14 +74,18 @@ class DeepQAgent(torch.nn.Module):
             b_bound = int(np.floor(bottom / height))
             for i in range(l_bound, r_bound + 1):
                 for j in range(t_bound, b_bound + 1):
-                    grid[j][i] = 1
+                    if not i >= 20 and not j >= 30:
+                        grid[j][i] = 1
         l_bound = int(np.floor(spider.rect.left / width))
         r_bound = int(np.ceil(spider.rect.right / width))
         t_bound = int(np.floor(spider.rect.top / height))
         b_bound = int(np.floor(spider.rect.bottom / height))
+        print(spider.rect.top)
         for i in range(l_bound, r_bound + 1):
             for j in range(t_bound, b_bound + 1):
-                grid[j][i] = -1
+                if not i >= 20 and not j >= 30:
+                    print("(" + str(i) + ", " + str(j) + ")")
+                    grid[j][i] = -1
         return np.reshape(grid, 600)
 
         # physics = spider.get_movement_coords()
@@ -107,9 +111,9 @@ class DeepQAgent(torch.nn.Module):
             -0.1 otherwise
         """
         self.reward = 0
-        # if game_over:
-        #     self.reward -= 9
-        #     return self.reward
+        if game_over:
+            self.reward -= 5
+            return self.reward
         if spider.on_platform:
             self.reward += 0
         if spider.pos.y < old_state[1]:
