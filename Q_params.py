@@ -1,13 +1,13 @@
 params_Q = dict()
 # Neural Network
-params_Q['epsilon_decay_linear'] = 1/100 # exploit after 1000 games
+params_Q['epsilon_decay_linear'] = 1/500 # exploit after 500 games
 params_Q['learning_rate'] = 0.00013629
 params_Q['first_layer_size'] = 200    # neurons in the first layer
 params_Q['second_layer_size'] = 20   # neurons in the second layer
 params_Q['third_layer_size'] = 50    # neurons in the third layer
 params_Q['episodes'] = 1000
 params_Q['memory_size'] = 25000 #too short ???
-params_Q['batch_size'] = 1000
+params_Q['batch_size'] = 3000
 # Settings
 params_Q['weights_path'] = 'weights/weights.h5'
 params_Q['load_weights'] = False

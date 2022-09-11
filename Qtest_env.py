@@ -186,7 +186,7 @@ def train_Q():
                 curr_action[randint(0, 4)] = 1
             else:
                 with torch.no_grad():
-                    curr_state_tensor = torch.from_numpy(curr_state) # .cuda()  #cuda() before every forward?
+                    curr_state_tensor = torch.from_numpy(curr_state).cuda()  #cuda() before every forward?
                     pred = agent.forward(curr_state_tensor.float()) #float?
                     ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
                     to have correct input and output layer sizes (input=36 output=5) '''

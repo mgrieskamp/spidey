@@ -15,7 +15,7 @@ class DeepQAgent(torch.nn.Module):
     def __init__(self, params):
         super().__init__()
         self.reward = 0
-        self.gamma = 0.9
+        self.gamma = 0.95
         self.dataframe = pd.DataFrame()
         self.short_memory = np.array([])
         self.agent_target = 1
@@ -31,7 +31,7 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
         self.optimizer = None
         # Layers
-        self.f1 = nn.Linear(24, self.first_layer)
+        self.f1 = nn.Linear(10, self.first_layer)
         self.f2 = nn.Linear(self.first_layer, self.second_layer)
         self.f3 = nn.Linear(self.second_layer, self.third_layer)
         self.f4 = nn.Linear(self.third_layer, 5)
@@ -47,51 +47,29 @@ class DeepQAgent(torch.nn.Module):
         x = F.softmax(self.f4(x), dim=-1)
         return x
 
-
     def get_state(self, spider, plats):
         """ ADD MORE STATES - WHETHER PLATFORM HAS BEEN VISITED (plat.point)
-        Numpy array of 36 values:
-            0) Player position x
-            1) Player position y
-            2) Player velocity x
-            3) Player velocity y
-            4) Player acceleration x
-            5) Player acceleration y
-            6) Platform 1 midleft x
-            7) Platform 1 midleft y
-            8) Platform 1 center x
-            9) Platform 1 center y
-            10) Platform 1 midright x
-            11) Platform 1 midright y
-            12) Platform 1 visited (1) or not visited (0) before
-            ..) ... repeat until platform 5
+        Numpy array of 10 values:
+            1) Distance to center of closest plat
+            2) Closest plat visited? (y/n = 1/0)
+            3) Distance to center of next closest plat
+            4) Next closest plat visited? (y/n = 1/0)
+            ..) ... repeat until 5th closest
         """
         physics = spider.get_movement_coords()
-        state = [physics[0].x, physics[0].y, physics[1].x, physics[1].y, physics[2].x, physics[2].y]
-        plat_locs = []
+        state = []
         plat_distances = []
-        closest_plats = []
+        plats_and_dists = []
         for platform in plats:
-            plat_locs.append(platform.get_pos())
-            plat_distances.append(np.linalg.norm(platform.get_pos()[1] - physics[0]))
-            closest_plats.append(platform)
-        # add 5 closest platforms to state
-        while len(plat_locs) > 6:
-            index = np.argmax(plat_distances)
-            plat_distances.pop(index)
-            plat_locs.pop(index)
-            closest_plats.pop(index)
-        # add midleft, center, midright x-y coords to state
-        for plat in plat_locs:
-            # state.append(plat[0][0])
-            # state.append(plat[0][1])
-            state.append(plat[1][0])
-            state.append(plat[1][1])
-            # state.append(plat[2][0])
-            # state.append(plat[2][1])
-        for plat in closest_plats:
-            state.append(int(plat.point))
-        return np.array(state)
+            dist_to_plat = np.linalg.norm(platform.get_pos()[1] - physics[0])
+            plat_distances.append(dist_to_plat)
+            plat_and_dist = (platform, dist_to_plat)
+            plats_and_dists.append(plat_and_dist)
+        sorted_indices = np.argsort(plat_distances)
+        for i in sorted_indices:
+            state.append(int(plats_and_dists[i][0].point))
+            state.append(plats_and_dists[i][1])
+        return np.array(state[0:10])
 
     def set_reward(self, spider, game_over, old_state):
         """
@@ -117,8 +95,8 @@ class DeepQAgent(torch.nn.Module):
     def train_short_term(self, state, action, reward, next_state, terminal):
         self.train()
         torch.set_grad_enabled(True)
-        next_state_tensor = torch.from_numpy(next_state) # .cuda()
-        state_tensor = torch.from_numpy(state) # .cuda()
+        next_state_tensor = torch.from_numpy(next_state).cuda()
+        state_tensor = torch.from_numpy(state).cuda()
         if terminal:
             target = reward
         else:
