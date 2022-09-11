@@ -12,7 +12,7 @@ class Platform(pygame.sprite.Sprite):
         width = random.randint(65, 100)
         self.surf = pygame.transform.scale(self.image, (width, 12))
         self.rect = self.surf.get_rect(
-            center=(random.randint(0, params.WIDTH - 10), random.randint(0, params.HEIGHT - 30)))
+            center=(random.randint(51, params.WIDTH - 51), random.randint(7, params.HEIGHT - 7)))
         self.speed = random.randint(-1, 1)
         self.moving = False
         self.point = True
@@ -40,7 +40,7 @@ def plat_gen(plats, all_sprites, play_plats):
 
         while close: # fixed freeze ? (height not < -50)
             pl = Platform()
-            pl.rect = pl.surf.get_rect(center=(random.randrange(0, params.WIDTH - width), random.randrange(-150, 0)))
+            pl.rect = pl.surf.get_rect(center=(random.randrange(width, params.WIDTH - width), random.randrange(-150, -7)))
             close = check(pl, plats)
 
         plats.add(pl)

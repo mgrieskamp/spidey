@@ -131,11 +131,11 @@ def do_action(game, action):
 
 
 def init_agent(game, agent, batch_size):
-    init_state1 = agent.get_state(game.spider, game.plats)
+    init_state1 = agent.get_state(game.spider, game.play_plats)
     action = [1, 0, 0, 0, 0]
     do_action(game, action)
     game.spider.update(game.plats, game.play_plats) ##new
-    init_state2 = agent.get_state(game.spider, game.plats)
+    init_state2 = agent.get_state(game.spider, game.play_plats)
     init_reward = agent.set_reward(game.spider, game.game_over, init_state1)
     agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
     agent.replay_memory(agent.memory, batch_size)
@@ -178,7 +178,7 @@ def train_Q():
             else:
                 agent.epsilon = 0.01
 
-            curr_state = agent.get_state(game.spider, game.plats)
+            curr_state = agent.get_state(game.spider, game.play_plats)
 
             # perform random action based on epsilon (explore) or choose action based on Q function prediction
             curr_action = [0, 0, 0, 0, 0]
@@ -215,7 +215,7 @@ def train_Q():
             pygame.display.update()
             game.FramePerSec.tick(params.FPS)
 
-            next_state = agent.get_state(game.spider, game.plats)
+            next_state = agent.get_state(game.spider, game.play_plats)
             reward = agent.set_reward(game.spider, game.game_over, curr_state)
             episode_reward += reward
 

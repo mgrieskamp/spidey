@@ -8,6 +8,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import copy
+
+import params
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -31,7 +34,7 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
         self.optimizer = None
         # Layers
-        self.f1 = nn.Linear(10, self.first_layer)
+        self.f1 = nn.Linear(600, self.first_layer)
         self.f2 = nn.Linear(self.first_layer, self.second_layer)
         self.f3 = nn.Linear(self.second_layer, self.third_layer)
         self.f4 = nn.Linear(self.third_layer, 5)
@@ -56,20 +59,45 @@ class DeepQAgent(torch.nn.Module):
             4) Next closest plat visited? (y/n = 1/0)
             ..) ... repeat until 5th closest
         """
-        physics = spider.get_movement_coords()
-        state = []
-        plat_distances = []
-        plats_and_dists = []
-        for platform in plats:
-            dist_to_plat = np.linalg.norm(platform.get_pos()[1] - physics[0])
-            plat_distances.append(dist_to_plat)
-            plat_and_dist = (platform, dist_to_plat)
-            plats_and_dists.append(plat_and_dist)
-        sorted_indices = np.argsort(plat_distances)
-        for i in sorted_indices:
-            state.append(int(plats_and_dists[i][0].point))
-            state.append(plats_and_dists[i][1])
-        return np.array(state[0:10])
+
+        grid = np.zeros(shape=(30, 20))
+        width = 20
+        height = 15
+        for plat in plats:
+            left = plat.rect.left
+            right = plat.rect.right
+            top = plat.rect.top
+            bottom = plat.rect.bottom
+            l_bound = int(np.floor(left / width))
+            r_bound = int(np.floor(right / width))
+            t_bound = int(np.floor(top / height))
+            b_bound = int(np.floor(bottom / height))
+            for i in range(l_bound, r_bound + 1):
+                for j in range(t_bound, b_bound + 1):
+                    grid[j][i] = 1
+        l_bound = int(np.floor(spider.rect.left / width))
+        r_bound = int(np.ceil(spider.rect.right / width))
+        t_bound = int(np.floor(spider.rect.top / height))
+        b_bound = int(np.floor(spider.rect.bottom / height))
+        for i in range(l_bound, r_bound + 1):
+            for j in range(t_bound, b_bound + 1):
+                grid[j][i] = -1
+        return np.reshape(grid, 600)
+
+        # physics = spider.get_movement_coords()
+        # state = []
+        # plat_distances = []
+        # plats_and_dists = []
+        # for platform in plats:
+        #     dist_to_plat = np.linalg.norm(platform.get_pos()[1] - physics[0])
+        #     plat_distances.append(dist_to_plat)
+        #     plat_and_dist = (platform, dist_to_plat)
+        #     plats_and_dists.append(plat_and_dist)
+        # sorted_indices = np.argsort(plat_distances)
+        # for i in sorted_indices:
+        #     state.append(int(plats_and_dists[i][0].point))
+        #     state.append(plats_and_dists[i][1])
+        # return np.array(state[0:10])
 
     def set_reward(self, spider, game_over, old_state):
         """
