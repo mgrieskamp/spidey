@@ -19,35 +19,52 @@ class DeepQAgent(torch.nn.Module):
         super().__init__()
         self.reward = 0
         self.gamma = 0.95
-        self.dataframe = pd.DataFrame()
-        self.short_memory = np.array([])
-        self.agent_target = 1
-        self.agent_predict = 0
         self.learning_rate = params['learning_rate']
         self.epsilon = 1
-        self.actual = []
-        self.first_layer = params['first_layer_size']
-        self.second_layer = params['second_layer_size']
-        self.third_layer = params['third_layer_size']
+        # self.first_layer = params['first_layer_size']
+        # self.second_layer = params['second_layer_size']
+        # self.third_layer = params['third_layer_size']
         self.memory = collections.deque(maxlen=params['memory_size'])
         self.weights = params['weights_path']
         self.load_weights = params['load_weights']
-        self.optimizer = None
-        # Layers
-        self.f1 = nn.Linear(600, self.first_layer)
-        self.f2 = nn.Linear(self.first_layer, self.second_layer)
-        self.f3 = nn.Linear(self.second_layer, self.third_layer)
-        self.f4 = nn.Linear(self.third_layer, 5)
+
+        self.input = None
+        self.input_scaled = self.input / 255
+
+        # Convolutional Layers
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=7, stride=4, padding='valid', bias=False)
+
+        # Advantage and Value Functions
+        self.value_stream, self.advantage_stream = torch.split(self.forward(self.input), 512, dim=3)
+        self.value_stream = torch.flatten(self.value_stream)
+        self.advantage_stream = torch.flatten(self.advantage_stream)
+        self.value = nn.Linear(512, 1).forward(self.value_stream)
+        self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions
+
+        self.q_values = self.value + torch.subtract(self.advantage, torch.mean(self.advantage, dim=1, keepdim=True))
+        self.best_action = torch.argmax(self.q_values, dim=1)
+
+        # Updates
+        self.target = None  # bellman equation target
+        self.action = None  # Action taken
+        self.q = torch.sum(torch.multiply(self.q_values, torch.nn.functional.one_hot(self.action, 4)), dim=1)
+        self.loss = F.huber_loss(input=self.q, target=self.target, reduction='mean', delta=1.0)
+        self.optimizer = optim.Adam(self.parameters(), weight_decay=0, lr=self.learning_rate)
+        self.update = self.optimizer.minimize(self.loss)
+
         # weights
         if self.load_weights:
             self.model = self.load_state_dict(torch.load(self.weights))
             print("weights loaded")
 
     def forward(self, x):
-        x = F.relu(self.f1(x))
-        x = F.relu(self.f2(x))
-        x = F.relu(self.f3(x))
-        x = F.softmax(self.f4(x), dim=-1)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
         return x
 
     def get_state(self, spider, plats):
@@ -75,7 +92,10 @@ class DeepQAgent(torch.nn.Module):
             for i in range(l_bound, r_bound + 1):
                 for j in range(t_bound, b_bound + 1):
                     if not i >= 20 and not j >= 30:
-                        grid[j][i] = 1
+                        if plat.point:
+                            grid[j][i] = 1
+                        else:
+                            grid[j][i] = -1
         l_bound = int(np.floor(spider.rect.left / width))
         r_bound = int(np.ceil(spider.rect.right / width))
         t_bound = int(np.floor(spider.rect.top / height))
@@ -85,7 +105,7 @@ class DeepQAgent(torch.nn.Module):
             for j in range(t_bound, b_bound + 1):
                 if not i >= 20 and not j >= 30:
                     print("(" + str(i) + ", " + str(j) + ")")
-                    grid[j][i] = -1
+                    grid[j][i] = 2
         return np.reshape(grid, 600)
 
         # physics = spider.get_movement_coords()
@@ -127,8 +147,8 @@ class DeepQAgent(torch.nn.Module):
     def train_short_term(self, state, action, reward, next_state, terminal):
         self.train()
         torch.set_grad_enabled(True)
-        next_state_tensor = torch.from_numpy(next_state).cuda()
-        state_tensor = torch.from_numpy(state).cuda()
+        next_state_tensor = torch.from_numpy(next_state)
+        state_tensor = torch.from_numpy(state)
         if terminal:
             target = reward
         else:
