@@ -47,16 +47,16 @@ class DeepQAgent(torch.nn.Module):
         # self.value = nn.Linear(512, 1).forward(self.value_stream)
         # self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions
 
-        self.q_values = self.value + torch.subtract(self.advantage, torch.mean(self.advantage, dim=1, keepdim=True))
-        self.best_action = torch.argmax(self.q_values, dim=1)
+        self.q_values = None
+        self.best_action = None
 
         # Updates
-        self.target = None  # bellman equation target
-        self.action = None  # Action taken
-        self.q = torch.sum(torch.multiply(self.q_values, torch.nn.functional.one_hot(self.action, 4)), dim=1)
-        self.loss = F.huber_loss(input=self.q, target=self.target, reduction='mean', delta=1.0)
+        # self.target = None  # bellman equation target
+        # self.action = None  # Action taken
+        # self.q = torch.sum(torch.multiply(self.q_values, torch.nn.functional.one_hot(self.action, 4)), dim=1)
+        # self.loss = F.huber_loss(input=self.q, target=self.target, reduction='mean', delta=1.0)
         self.optimizer = optim.Adam(self.parameters(), weight_decay=0, lr=self.learning_rate)
-        self.update = self.optimizer.minimize(self.loss)
+        # self.update = self.optimizer.minimize(self.loss)
 
         # weights
         if self.load_weights:
@@ -72,7 +72,8 @@ class DeepQAgent(torch.nn.Module):
         value = self.value_layer(conv_value)
         adv = self.adv_layer(conv_adv)
         adv_average = torch.mean(adv, dim=1, keepdim=True)
-        q_value = value + adv - adv_average
+        self.q_values = value + adv - adv_average
+        self.best_action = torch.argmax(self.q_values, dim=1)
 
         return x
 
@@ -157,15 +158,19 @@ class DeepQAgent(torch.nn.Module):
         self.train()
         torch.set_grad_enabled(True)
         if terminal:
-            self.target = reward
+            target = reward
         else:
-            self.target = reward + self.gamma * torch.max(self.forward(next_state.float())[0]) #float?
-        output_layer = self.forward(state.float()) #float?
-        target_layer = output_layer.clone()
-        target_layer[np.argmax(action)] = self.target  #0-dim tensor?
-        target_layer.detach()
+            target = reward + self.gamma * torch.max(self.forward(next_state.float())[0]) #float?  #TODO: this needs changing
+        output = torch.sum(torch.multiply(self.q_values, torch.nn.functional.one_hot(self.action, 4)), dim=1)
+        loss = F.huber_loss(input=output, target=target, reduction='mean', delta=1.0)
+
+        # output_layer = self.forward(state.float()) #float?
+        # target_layer = output_layer.clone()
+        # target_layer[np.argmax(action)] = self.target  #0-dim tensor?
+        # target_layer.detach()
+        # self.optimizer.zero_grad()
+        # loss = F.mse_loss(output_layer, target_layer)
         self.optimizer.zero_grad()
-        loss = F.mse_loss(output_layer, target_layer)
         loss.backward()
         self.optimizer.step()
 
