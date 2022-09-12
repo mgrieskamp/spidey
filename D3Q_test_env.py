@@ -141,5 +141,18 @@ def training():
     pygame.init()
     q_params = Q_params.params_Q
 
+    # init replay memory
     main_network = D3Q.D3QAgent(q_params)
     target_network = D3Q.D3QAgent(q_params)
+    # for frame = 1, M do
+        # init sequence
+        # while gaming do
+            # select action based on epsilon or network
+            # observe frame
+            # do action and observe reward
+            # observe next frame
+            # update memory frames and sequence frames
+            # if time to learn
+                # train_short
+            # if time to update target network
+                # update target network
