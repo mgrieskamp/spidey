@@ -14,6 +14,7 @@ import Q_params
 import statistics
 import torch.optim as optim
 import torch
+import torchvision
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -119,26 +120,52 @@ def play():
     sys.exit()
 
 
+# 4 possible action states: left, right, jump, release jump
 def do_action(game, action):
     if action[0] == 1 or action[1] == 1:
         game.spider.agent_move(action)
     elif action[2] == 1:
         game.spider.jump(game.plats)
-    elif action[3] == 1:
-        game.spider.release_jump(game.plats)
     else:
-        pass
+        game.spider.release_jump(game.plats)
 
 
+# Initializes the agent by performing one action and one transition in the game world
 def init_agent(game, agent, batch_size):
     init_state1 = agent.get_state(game.spider, game.play_plats)
-    action = [1, 0, 0, 0, 0]
+    action = [1, 0, 0, 0]
     do_action(game, action)
     game.spider.update(game.plats, game.play_plats) ##new
     init_state2 = agent.get_state(game.spider, game.play_plats)
     init_reward = agent.set_reward(game.spider, game.game_over, init_state1)
     agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
     agent.replay_memory(agent.memory, batch_size)
+
+
+"""
+Obtains an RGB image of the current game screen, then grayscales and downsizes it to a 200 x 200
+np uint8 array for memory efficiency.
+Input: game object
+Output: grayscale np array (dtype = uint8) of current game frame
+"""
+def to_grayscale(game):
+    screen_area = pygame.Rect(0, params.HEIGHT, params.WIDTH, params.HEIGHT)
+    sub_surface = game.displaysurface.subsurface(screen_area)
+    RGB_data = pygame.surfarray.array3d(sub_surface)
+    tensor_RGB = torch.from_numpy(RGB_data)
+    grayscale_tensor = torchvision.transforms.functional.rgb_to_grayscale(tensor_RGB, 1)
+    resized_gray = torchvision.transforms.functional.resized_crop(grayscale_tensor, top=400, left=0, height=400,
+                                                                  width=400, size=(200, 200))
+    # normalized_gray = torch.div(resized_gray, 255)
+    np_gray = resized_gray.detach().cpu().numpy()
+    np_efficient = np_gray.astype(dtype=np.uint8)
+    return np_efficient
+
+
+def init_sequence(game, seq_size):
+    first_frame = to_grayscale(game)
+    sequence_frames = np.repeat(first_frame, seq_size, axis=2)
+    return sequence_frames
 
 
 def train_Q():
