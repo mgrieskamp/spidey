@@ -182,6 +182,62 @@ def update_sequence(game, agent):
     agent.input = new_sequence
 
 
+class Memory():
+    def __init__(self, size=1000000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
+        self.counter = 0
+        self.current = 0
+        self.size = size
+        self.frame_h = frame_h
+        self.frame_w = frame_w
+        self.batch_size = batch_size
+        self.seq_size = seq_size
+
+        self.frames = np.empty((self.size, self.frame_h, self.frame_w), dtype=np.uint8)
+        self.actions = np.empty(self.size, dtype=np.int32)
+        self.rewards = np.empty(self.size, dtype=np.float32)
+        self.terminals = np.empty(self.size, dtype=np.bool)
+
+        self.states = np.empty((self.batch_size, self.seq_size,
+                                self.frame_h, self.frame_w), dtype=np.uint8)
+        self.new_states = np.empty((self.batch_size, self.seq_size,
+                                    self.frame_h, self.frame_w), dtype=np.uint8)
+        self.indices = np.empty(self.batch_size, dtype=np.int32)
+
+    def add_memory(self, frame, action, reward, is_terminal):
+        self.frames[self.current, ...] = frame
+        self.actions[self.current] = action
+        self.rewards[self.current] = reward
+        self.terminals[self.current] = is_terminal
+        self.counter = max(self.counter, self.current + 1)
+        self.current = (self.current + 1) % self.size
+
+    def get_state(self, index):
+        if self.counter == 0 or index < self.seq_size - 1:
+            pass
+        else:
+            return self.frames[index - self.seq_size + 1: index + 1, ...]
+
+    def get_indices(self):
+        for i in range(self.batch_size):
+            while True:
+                index = random.randint(self.seq_size, self.counter - 1)
+                if index < self.seq_size:
+                    continue
+                if index >= self.current >= index - self.seq_size:
+                    continue
+                if self.terminals[index - self.seq_size:index].any():
+                    continue
+                break
+            self.indices[i] = index
+
+    def get_minibatch(self):
+        if self.counter < self.seq_size:
+            pass
+        self.get_indices()
+        for i, idx in enumerate(self.indices):
+            self.states[i] = self.get_state(idx - 1)
+            self.new_states[i] = self.get_state(idx)
+
 def train_new():
     pygame.init()
     frame_num = 0

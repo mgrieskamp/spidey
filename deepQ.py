@@ -36,12 +36,16 @@ class DeepQAgent(torch.nn.Module):
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
         self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=7, stride=4, padding='valid', bias=False)
 
-        # Advantage and Value Functions
-        self.value_stream, self.advantage_stream = torch.split(self.forward(self.input), 512, dim=3)
-        self.value_stream = torch.flatten(self.value_stream)
-        self.advantage_stream = torch.flatten(self.advantage_stream)
-        self.value = nn.Linear(512, 1).forward(self.value_stream)
-        self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions=4
+        # Output Layers
+        self.value_layer = nn.Linear(512, 1)
+        self.adv_layer = nn.Linear(512, 4)
+
+        # # Advantage and Value Functions
+        # self.value_stream, self.advantage_stream = torch.split(self.forward(self.input), 512, dim=3)
+        # self.value_stream = torch.flatten(self.value_stream)
+        # self.advantage_stream = torch.flatten(self.advantage_stream)
+        # self.value = nn.Linear(512, 1).forward(self.value_stream)
+        # self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions
 
         self.q_values = self.value + torch.subtract(self.advantage, torch.mean(self.advantage, dim=1, keepdim=True))
         self.best_action = torch.argmax(self.q_values, dim=1)
@@ -64,6 +68,12 @@ class DeepQAgent(torch.nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = F.relu(self.conv4(x))
+        conv_value, conv_adv = torch.split(x, 2)
+        value = self.value_layer(conv_value)
+        adv = self.adv_layer(conv_adv)
+        adv_average = torch.mean(adv, dim=1, keepdim=True)
+        q_value = value + adv - adv_average
+
         return x
 
     # def get_state(self, spider, plats):
