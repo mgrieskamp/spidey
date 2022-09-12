@@ -18,6 +18,7 @@ import torchvision
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -135,7 +136,7 @@ def init_agent(game, agent, batch_size):
     init_state1 = agent.get_state(game.spider, game.play_plats)
     action = [1, 0, 0, 0]
     do_action(game, action)
-    game.spider.update(game.plats, game.play_plats) ##new
+    game.spider.update(game.plats, game.play_plats)  ##new
     init_state2 = agent.get_state(game.spider, game.play_plats)
     init_reward = agent.set_reward(game.spider, game.game_over, init_state1)
     agent.store_transition(init_state1, action, init_reward, init_state2, game.game_over)
@@ -162,10 +163,34 @@ def to_grayscale(game):
     return np_efficient
 
 
-def init_sequence(game, seq_size):
+"""
+Initializes the first sequence: Updates the agent.input field by cloning the first frame of
+the game into a (seq-size)-layer 3-dim tensor to be used for the first forward.
+"""
+def init_sequence(game, agent, seq_size):
     first_frame = to_grayscale(game)
     sequence_frames = np.repeat(first_frame, seq_size, axis=2)
-    return sequence_frames
+    sequence_tensor = torch.from_numpy(sequence_frames)
+    agent.input = torch.div(sequence_tensor, 255)
+
+
+def update_sequence(game, agent):
+    curr_frame = torch.from_numpy(to_grayscale(game))
+    norm_frame = torch.div(curr_frame, 255)
+    curr_sequence = agent.input
+    new_sequence = torch.stack((curr_sequence[:, :, 1:], norm_frame), dim=2)
+    agent.input = new_sequence
+
+
+def train_new():
+    pygame.init()
+    frame_num = 0
+    max_frames = 10000000
+    while frame_num < max_frames:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
 
 
 def train_Q():
@@ -197,7 +222,7 @@ def train_Q():
         while (not game.game_over) and (steps < 500):
 
             set_background(game.displaysurface, game.background)
-            game.spider.update(game.plats, game.play_plats) ##new
+            game.spider.update(game.plats, game.play_plats)  ##new
 
             if q_params['train']:
                 # epsilon (random exploration) decreases as agent trains for longer
@@ -213,8 +238,8 @@ def train_Q():
                 curr_action[randint(0, 4)] = 1
             else:
                 with torch.no_grad():
-                    curr_state_tensor = torch.from_numpy(curr_state)  #cuda() before every forward?
-                    pred = agent.forward(curr_state_tensor.float()) #float?
+                    curr_state_tensor = torch.from_numpy(curr_state)  # cuda() before every forward?
+                    pred = agent.forward(curr_state_tensor.float())  # float?
                     ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
                     to have correct input and output layer sizes (input=36 output=5) '''
                     curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
