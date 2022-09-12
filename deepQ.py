@@ -29,7 +29,6 @@ class DeepQAgent(torch.nn.Module):
         self.load_weights = params['load_weights']
 
         self.input = None
-        self.input_scaled = self.input / 255
 
         # Convolutional Layers
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
@@ -42,7 +41,7 @@ class DeepQAgent(torch.nn.Module):
         self.value_stream = torch.flatten(self.value_stream)
         self.advantage_stream = torch.flatten(self.advantage_stream)
         self.value = nn.Linear(512, 1).forward(self.value_stream)
-        self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions
+        self.advantage = nn.Linear(512, 4).forward(self.advantage_stream)     # num actions=4
 
         self.q_values = self.value + torch.subtract(self.advantage, torch.mean(self.advantage, dim=1, keepdim=True))
         self.best_action = torch.argmax(self.q_values, dim=1)
@@ -67,46 +66,46 @@ class DeepQAgent(torch.nn.Module):
         x = F.relu(self.conv4(x))
         return x
 
-    def get_state(self, spider, plats):
-        """ ADD MORE STATES - WHETHER PLATFORM HAS BEEN VISITED (plat.point)
-        Numpy array of 10 values:
-            1) Distance to center of closest plat
-            2) Closest plat visited? (y/n = 1/0)
-            3) Distance to center of next closest plat
-            4) Next closest plat visited? (y/n = 1/0)
-            ..) ... repeat until 5th closest
-        """
-
-        grid = np.zeros(shape=(30, 20))
-        width = 20
-        height = 15
-        for plat in plats:
-            left = plat.rect.left
-            right = plat.rect.right
-            top = plat.rect.top
-            bottom = plat.rect.bottom
-            l_bound = int(np.floor(left / width))
-            r_bound = int(np.floor(right / width))
-            t_bound = int(np.floor(top / height))
-            b_bound = int(np.floor(bottom / height))
-            for i in range(l_bound, r_bound + 1):
-                for j in range(t_bound, b_bound + 1):
-                    if not i >= 20 and not j >= 30:
-                        if plat.point:
-                            grid[j][i] = 1
-                        else:
-                            grid[j][i] = -1
-        l_bound = int(np.floor(spider.rect.left / width))
-        r_bound = int(np.ceil(spider.rect.right / width))
-        t_bound = int(np.floor(spider.rect.top / height))
-        b_bound = int(np.floor(spider.rect.bottom / height))
-        print(spider.rect.top)
-        for i in range(l_bound, r_bound + 1):
-            for j in range(t_bound, b_bound + 1):
-                if not i >= 20 and not j >= 30:
-                    print("(" + str(i) + ", " + str(j) + ")")
-                    grid[j][i] = 2
-        return np.reshape(grid, 600)
+    # def get_state(self, spider, plats):
+    #     """ ADD MORE STATES - WHETHER PLATFORM HAS BEEN VISITED (plat.point)
+    #     Numpy array of 10 values:
+    #         1) Distance to center of closest plat
+    #         2) Closest plat visited? (y/n = 1/0)
+    #         3) Distance to center of next closest plat
+    #         4) Next closest plat visited? (y/n = 1/0)
+    #         ..) ... repeat until 5th closest
+    #     """
+    #
+    #     grid = np.zeros(shape=(30, 20))
+    #     width = 20
+    #     height = 15
+    #     for plat in plats:
+    #         left = plat.rect.left
+    #         right = plat.rect.right
+    #         top = plat.rect.top
+    #         bottom = plat.rect.bottom
+    #         l_bound = int(np.floor(left / width))
+    #         r_bound = int(np.floor(right / width))
+    #         t_bound = int(np.floor(top / height))
+    #         b_bound = int(np.floor(bottom / height))
+    #         for i in range(l_bound, r_bound + 1):
+    #             for j in range(t_bound, b_bound + 1):
+    #                 if not i >= 20 and not j >= 30:
+    #                     if plat.point:
+    #                         grid[j][i] = 1
+    #                     else:
+    #                         grid[j][i] = -1
+    #     l_bound = int(np.floor(spider.rect.left / width))
+    #     r_bound = int(np.ceil(spider.rect.right / width))
+    #     t_bound = int(np.floor(spider.rect.top / height))
+    #     b_bound = int(np.floor(spider.rect.bottom / height))
+    #     print(spider.rect.top)
+    #     for i in range(l_bound, r_bound + 1):
+    #         for j in range(t_bound, b_bound + 1):
+    #             if not i >= 20 and not j >= 30:
+    #                 print("(" + str(i) + ", " + str(j) + ")")
+    #                 grid[j][i] = 2
+    #     return np.reshape(grid, 600)
 
         # physics = spider.get_movement_coords()
         # state = []
@@ -147,15 +146,13 @@ class DeepQAgent(torch.nn.Module):
     def train_short_term(self, state, action, reward, next_state, terminal):
         self.train()
         torch.set_grad_enabled(True)
-        next_state_tensor = torch.from_numpy(next_state)
-        state_tensor = torch.from_numpy(state)
         if terminal:
-            target = reward
+            self.target = reward
         else:
-            target = reward + self.gamma * torch.max(self.forward(next_state_tensor.float())[0]) #float?
-        output_layer = self.forward(state_tensor.float()) #float?
+            self.target = reward + self.gamma * torch.max(self.forward(next_state.float())[0]) #float?
+        output_layer = self.forward(state.float()) #float?
         target_layer = output_layer.clone()
-        target_layer[np.argmax(action)] = target  #0-dim tensor?
+        target_layer[np.argmax(action)] = self.target  #0-dim tensor?
         target_layer.detach()
         self.optimizer.zero_grad()
         loss = F.mse_loss(output_layer, target_layer)

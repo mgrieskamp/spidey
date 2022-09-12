@@ -199,11 +199,12 @@ def train_Q():
     num_games = 0
     scores = []
     counter = []
-    record = 0
     total_score = 0
     agent = deepQ.DeepQAgent(q_params)
     agent = agent.to(DEVICE)
-    agent.optimizer = optim.Adam(agent.parameters(), weight_decay=0, lr=q_params['learning_rate'])
+    target = deepQ.DeepQAgent(q_params)
+    target = target.to(DEVICE)
+
     # start game loop
     while num_games < q_params['episodes']:
         for event in pygame.event.get():
@@ -214,7 +215,7 @@ def train_Q():
         build_start(game)
 
         # first move
-        init_agent(game, agent, q_params['batch_size'])
+        init_sequence(game, agent, 4)
         steps = 0
         episode_reward = 0
 
@@ -230,19 +231,14 @@ def train_Q():
             else:
                 agent.epsilon = 0.01
 
-            curr_state = agent.get_state(game.spider, game.play_plats)
+            curr_state = agent.input
 
             # perform random action based on epsilon (explore) or choose action based on Q function prediction
-            curr_action = [0, 0, 0, 0, 0]
+            curr_action = [0, 0, 0, 0]
             if random.uniform(0, 1) < agent.epsilon:
-                curr_action[randint(0, 4)] = 1
+                curr_action[randint(0, 3)] = 1
             else:
-                with torch.no_grad():
-                    curr_state_tensor = torch.from_numpy(curr_state)  # cuda() before every forward?
-                    pred = agent.forward(curr_state_tensor.float())  # float?
-                    ''' TODO: unsure if this will return an action between 0 and 4, I think we need to update our neural net
-                    to have correct input and output layer sizes (input=36 output=5) '''
-                    curr_action[np.argmax(pred.detach().cpu().numpy())] = 1
+                curr_action[agent.best_action] = 1
             do_action(game, curr_action)
 
             if game.spider.rect.bottom > params.HEIGHT:
@@ -268,7 +264,8 @@ def train_Q():
             pygame.display.update()
             game.FramePerSec.tick(params.FPS)
 
-            next_state = agent.get_state(game.spider, game.play_plats)
+            update_sequence(game, agent)
+            next_state = agent.input
             reward = agent.set_reward(game.spider, game.game_over, curr_state)
             episode_reward += reward
 
@@ -277,6 +274,8 @@ def train_Q():
                 steps = 0
 
             if q_params['train']:
+                # store transition
+                # train short term
                 agent.train_short_term(curr_state, curr_action, reward, next_state, game.game_over)
                 agent.store_transition(curr_state, curr_action, reward, next_state, game.game_over)
 
