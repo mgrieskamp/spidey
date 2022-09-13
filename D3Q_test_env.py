@@ -111,7 +111,7 @@ def init_sequence(game, agent, seq_size):
     agent.input = torch.div(sequence_tensor, 255)
 
 
-# ???
+# ??? might need reworking
 def update_sequence(game, agent):
     curr_frame = torch.from_numpy(to_grayscale(game))
     norm_frame = torch.div(curr_frame, 255)
@@ -126,7 +126,7 @@ performs gradient descent.
 """
 def train_short(memory, main_network, target_network):
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
-    for i in range(memory.batch_size):  # ???? for now all q's are single int/floats
+    for i in range(memory.batch_size):  # ???? for now all q's are assumed to be single int/floats
         argmax_q_main = main_network.get_highest_q_action(new_states[i])
         double_q = target_network.get_q_value_of_action(new_states[i], argmax_q_main)
         main_network.target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
@@ -138,6 +138,7 @@ def train_short(memory, main_network, target_network):
 
 
 # Reference https://github.com/gouxiangchen/dueling-DQN-pytorch/blob/master/dueling_dqn.py
+# Following the algorithm
 def training():
     pygame.init()
     q_params = Q_params.params_Q

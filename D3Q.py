@@ -55,16 +55,16 @@ class D3QAgent(torch.nn.Module):
     Output: (N, 1?, 1?, 4) Tensor of q_values for each action
     """
     def forward(self, x):
-        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv1(x))  # (4, 1, 200, 200) tensor in
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv4(x))  # (4, 1024, 1?, 1?) tensor out
         conv_value, conv_adv = torch.split(x, 2)  # we need to split this in the right dimension. (C_out)
-        value = self.value_layer(conv_value)
-        adv = self.adv_layer(conv_adv)
-        adv_average = torch.mean(adv, dim=1, keepdim=True)
+        value = self.value_layer(conv_value)  # requires (4, 1?, 1?, 512) tensor
+        adv = self.adv_layer(conv_adv) # requires (4, 1?, 1?, 512) tensor
+        adv_average = torch.mean(adv, dim=1, keepdim=True)  # unknown dimensions
         q_values = value + adv - adv_average  # is this a Nx1x1x4 tensor???
-        return q_values
+        return q_values  # what is this object
 
     """
     Does a forward call and returns the index of the action with the highest Q value given a
@@ -74,9 +74,9 @@ class D3QAgent(torch.nn.Module):
     """
     def get_highest_q_action(self, state):
         with torch.no_grad():
-            q_values = self.forward(state)
-            best_action_index = torch.argmax(q_values, dim=3)  # are the dimensions correct???
-        return best_action_index.item()
+            q_values = self.forward(state) # assuming this is a (1, 1, 4) tensor
+            best_action_index = torch.argmax(q_values, dim=3)  # wrong dimensions
+        return best_action_index.item()  # intended to return an int. unsure if correct
 
     """
     Does a forward call and returns the Q value of an action at a specified index given a state
@@ -86,9 +86,9 @@ class D3QAgent(torch.nn.Module):
     """
     def get_q_value_of_action(self, state, action_index):
         with torch.no_grad():
-            q_values = self.forward(state)
-            q_value = torch.flatten(q_values)[action_index]  # strange dimensions
-        return q_value.item()
+            q_values = self.forward(state)  # assuming this is a (1, 1, 4) tensor
+            q_value = torch.flatten(q_values)[action_index]  # wrong dimensions
+        return q_value.item()  # intended to return a float. unsure if correct
 
 
 class Memory(object):
@@ -107,11 +107,13 @@ class Memory(object):
         self.terminals = np.empty(self.size, dtype=np.bool)
 
         self.states = np.empty((self.batch_size, self.seq_size,
-                                self.frame_h, self.frame_w), dtype=np.uint8)
+                                self.frame_h, self.frame_w), dtype=np.uint8)  # Dim: (32, 4, 200, 200)
         self.new_states = np.empty((self.batch_size, self.seq_size,
-                                    self.frame_h, self.frame_w), dtype=np.uint8)
+                                    self.frame_h, self.frame_w), dtype=np.uint8)  # Dim: (32, 4, 200, 200)
+        # List of indices to slice out of the memory
         self.indices = np.empty(self.batch_size, dtype=np.int32)
 
+    # Should be easily called every frame
     def add_memory(self, frame, action, reward, is_terminal):
         self.frames[self.current, ...] = frame
         self.actions[self.current] = action
@@ -120,12 +122,14 @@ class Memory(object):
         self.counter = max(self.counter, self.current + 1)
         self.current = (self.current + 1) % self.size
 
+    # A state is composed of four frames (tensor dim: [4, 200, 200])
     def get_state(self, index):
         if self.counter == 0 or index < self.seq_size - 1:
             pass
         else:
             return self.frames[index - self.seq_size + 1: index + 1, ...]
 
+    # Pick random valid indices to slice out of the memory
     def get_indices(self):
         for i in range(self.batch_size):
             while True:
@@ -139,6 +143,8 @@ class Memory(object):
                 break
             self.indices[i] = index
 
+    # Use the randomly picked indices to slice out states and next states to be stored
+    # in network fields
     def get_minibatch(self):
         if self.counter < self.seq_size:
             pass
@@ -146,5 +152,5 @@ class Memory(object):
         for i, idx in enumerate(self.indices):
             self.states[i] = self.get_state(idx - 1)
             self.new_states[i] = self.get_state(idx)
-        # TODO: Wrong return dimensions.
+        # TODO: Wrong return dimensions. Look at __init__ for dimensions.
         return self.states, self.actions, self.rewards, self.new_states, self.terminals
