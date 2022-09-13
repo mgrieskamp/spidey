@@ -15,6 +15,7 @@ import statistics
 import torch.optim as optim
 import torch
 import torchvision
+import torch.nn.functional as F
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -110,7 +111,7 @@ def init_sequence(game, agent, seq_size):
     agent.input = torch.div(sequence_tensor, 255)
 
 
-# ??? maybe unnecessary
+# ???
 def update_sequence(game, agent):
     curr_frame = torch.from_numpy(to_grayscale(game))
     norm_frame = torch.div(curr_frame, 255)
@@ -121,19 +122,19 @@ def update_sequence(game, agent):
 
 """
 Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
-performs gradient descent every step.
+performs gradient descent.
 """
 def train_short(memory, main_network, target_network):
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
-    for i in range(memory.batch_size):  # TODO: an array is more efficient than a for loop?
+    for i in range(memory.batch_size):  # ???? for now all q's are single int/floats
         argmax_q_main = main_network.get_highest_q_action(new_states[i])
         double_q = target_network.get_q_value_of_action(new_states[i], argmax_q_main)
-        main_network.target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))
-        # Gradient descent: implement loss and optimizer
-        # loss = huber loss
-        # optimizer zero grad
-        # loss backward
-        # optimizer step
+        main_network.target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
+        inputt = 1  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
+        loss = F.huber_loss(input=inputt, target=main_network.target, reduction='mean', delta=1.0)
+        main_network.optimizer.zero_grad()
+        loss.backward()
+        main_network.optimizer.step()
 
 
 # Reference https://github.com/gouxiangchen/dueling-DQN-pytorch/blob/master/dueling_dqn.py
@@ -141,11 +142,16 @@ def training():
     pygame.init()
     q_params = Q_params.params_Q
 
-    # init replay memory
+    replay_memory = D3Q.Memory()
     main_network = D3Q.D3QAgent(q_params)
     target_network = D3Q.D3QAgent(q_params)
-    # for frame = 1, M do
-        # init sequence
+    frame = 0
+    max_frame = 100000000
+    while frame < max_frame:
+        # init game and sequence
+        game = SpiderJumpGame()
+        build_start(game)
+        init_sequence(game, main_network)
         # while gaming do
             # select action based on epsilon or network
             # observe frame
