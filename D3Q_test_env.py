@@ -126,17 +126,18 @@ performs gradient descent.
 """
 
 
-def train_short(memory, main_network, target_network):
-    states, actions, rewards, new_states, terminals = memory.get_minibatch()
+def replay(memory, main_network, target_network):
+    states, action, rewards, new_states, terminals = memory.get_minibatch()
     for i in range(memory.batch_size):  # ???? for now all q's are assumed to be single int/floats
         argmax_q_main = main_network.get_highest_q_action(new_states[i])
         double_q = target_network.get_q_value_of_action(new_states[i], argmax_q_main)
         target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
-        predict = target_network.forward(new_states)  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
+        predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(action, 4)))  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
         loss = F.huber_loss(input=predict, target=target, reduction='mean', delta=1.0)
         main_network.optimizer.zero_grad()
         loss.backward()
         main_network.optimizer.step()
+        return loss
 
 
 # Reference https://github.com/gouxiangchen/dueling-DQN-pytorch/blob/master/dueling_dqn.py
@@ -152,6 +153,7 @@ def training():
     target_network = target_network.to(DEVICE)
 
     scores = []
+    losses = []
     counter = []
     frame = 0
     max_frame = 100000000
@@ -170,25 +172,64 @@ def training():
             init_sequence(game, main_network)
 
             while not game.game_over:
-                update_sequence(game, main_network)
+                # observe frame
                 state = main_network.input
                 # select action based on epsilon or network
-                if q_params['train']:
-                    # epsilon (random exploration) decreases as agent trains for longer
-                    main_network.epsilon = 1 - (episode * q_params['epsilon_decay_linear'])
-                else:
-                    main_network.epsilon = 0.01
+                # epsilon (random exploration) decreases as agent trains for longer
+                main_network.epsilon = 1 - (episode * q_params['epsilon_decay_linear'])
                 curr_action = [0, 0, 0, 0]
                 if random.uniform(0, 1) < main_network.epsilon:
-                    curr_action[randint(0, 3)] = 1
+                    action_ind = randint(0, 3)
                 else:
-                    curr_action[main_network.get_highest_q_action()] = 1
+                    action_ind = main_network.get_highest_q_action(state)
+                curr_action[action_ind] = 1
+                # do action
                 do_action(game, curr_action)
-                # observe frame
-                # do action and observe reward
-                # observe next frame
-                # update memory frames and sequence frames
+                if game.spider.rect.bottom > params.HEIGHT:
+                    game.game_over = True
+                    game.spider.kill()
+
+                if game.spider.rect.top <= params.HEIGHT / 3:
+                    game.spider.pos.y += abs(game.spider.vel.y)
+                    for pl in game.plats:
+                        pl.rect.y += abs(game.spider.vel.y)
+                        if pl.rect.top > params.HEIGHT:
+                            pl.kill()
+
+                platforms.plat_gen(game.plats, game.all_sprites, game.play_plats)
+
+                game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
+                game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
+
+                for entity in game.all_sprites:
+                    entity.draw(game.displaysurface)
+                    entity.move()
+
+                pygame.display.update()
+                game.FramePerSec.tick(params.FPS)
+
+                # observe reward and next frame
+                update_sequence(game, main_network)
+                new_state = main_network.input
+                reward = main_network.get_reward(game.spider, game.game_over)
+                # update memory frames
+                replay_memory.add_memory(frame=new_state, action=action_ind, reward=reward)
+                frame += 1
+                episode_reward += reward
+
                 # if time to learn
-                    # train_short
+                if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
+                    # replay memory
+                    loss = replay(replay_memory, main_network, target_network)
+                    losses.append(loss)
+
                 # if time to update target network
+                if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
                     # update target network
+                    target_network.load_state_dict(main_network.state_dict())
+
+            episode += 1
+            print(f'Game {episode}        Score: {game.spider.score}')
+            print('Episode Reward: ' + str(episode_reward))
+            scores.append(game.spider.score)
+            counter.append(episode)

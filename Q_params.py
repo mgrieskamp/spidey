@@ -10,6 +10,7 @@ params_Q['memory_size'] = 25000 #too short ???
 params_Q['batch_size'] = 3000
 params_Q['update_frequency'] = 4
 params_Q['net_update_frequency'] = 10000
+params_Q['replay_start'] = 50000
 # Settings
 params_Q['weights_path'] = 'weights/weights.h5'
 params_Q['load_weights'] = False
