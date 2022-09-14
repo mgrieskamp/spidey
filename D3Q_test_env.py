@@ -86,6 +86,8 @@ np uint8 array for memory efficiency.
 Input: game object
 Output: grayscale np array (dtype = uint8) of current game frame
 """
+
+
 def to_grayscale(game):
     screen_area = pygame.Rect(0, params.HEIGHT, params.WIDTH, params.HEIGHT)
     sub_surface = game.displaysurface.subsurface(screen_area)
@@ -104,6 +106,8 @@ def to_grayscale(game):
 Initializes the first sequence: Updates the agent.input field by cloning the first frame of
 the game into a (seq-size)-layer 3-dim tensor to be used for the first forward.
 """
+
+
 def init_sequence(game, agent, seq_size):
     first_frame = to_grayscale(game)
     sequence_frames = np.repeat(first_frame, seq_size, axis=2)
@@ -122,22 +126,21 @@ def update_sequence(game, agent):
 
 """
 Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
-performs gradient descent.
+performs minibatch gradient descent.
 """
 
 
 def replay(memory, main_network, target_network):
-    states, action, rewards, new_states, terminals = memory.get_minibatch()
-    for i in range(memory.batch_size):  # ???? for now all q's are assumed to be single int/floats
-        argmax_q_main = main_network.get_highest_q_action(new_states[i])
-        double_q = target_network.get_q_value_of_action(new_states[i], argmax_q_main)
-        target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
-        predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(action, 4)))  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
-        loss = F.huber_loss(input=predict, target=target, reduction='mean', delta=1.0)
-        main_network.optimizer.zero_grad()
-        loss.backward()
-        main_network.optimizer.step()
-        return loss
+    states, actions, rewards, new_states, terminals = memory.get_minibatch()
+    argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
+    double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
+    target = rewards + main_network.gamma * double_q * (1 - int(terminals))
+    predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(actions, 4)))
+    loss = F.huber_loss(input=predict, target=target, reduction='mean', delta=1.0)  # mean reduction
+    main_network.optimizer.zero_grad()
+    loss.backward()
+    main_network.optimizer.step()
+    return loss
 
 
 # Reference https://github.com/gouxiangchen/dueling-DQN-pytorch/blob/master/dueling_dqn.py
@@ -185,7 +188,7 @@ def training():
                 curr_action[action_ind] = 1
                 # do action
                 do_action(game, curr_action)
-                if game.spider.rect.bottom > params.HEIGHT:
+                if game.spider.rect.top > params.HEIGHT:
                     game.game_over = True
                     game.spider.kill()
 

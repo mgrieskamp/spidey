@@ -26,8 +26,9 @@ class D3QAgent(torch.nn.Module):
 
         self.input = None
 
-        # Convolutional Layers - (4, C_in, H, W) -> (4, C_out, H_out, W_out,)
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
+        # Convolutional Layers - (N, C_in, H, W) -> (N, C_out, H_out, W_out)
+        # Dimension will be: (32, 4, 200, 200) -> (32, C_out, H_out, W_out)
+        self.conv1 = nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
         self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=8, stride=4, padding='valid', bias=False)
@@ -52,21 +53,21 @@ class D3QAgent(torch.nn.Module):
     """
     Forward call through 4 convolution layers and final split linear layer for dueling.
     Input: Grayscale normalized image tensor, mini-batches allowed. Dim: (N, C_in, H, W)
-    Output: (N, 1?, 1?, 4) Tensor of q_values for each action
+    Output: (N, C_out, H, W) Tensor of q_values for each action
     """
     def forward(self, x):
-        x = F.relu(self.conv1(x))  # (4, 1, 200, 200) tensor in
+        x = F.relu(self.conv1(x))  # (32, 4, 200, 200) tensor in
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))  # (4, 1024, 1, 1) tensor out
+        x = F.relu(self.conv4(x))  # (32, 1024, 1, 1) tensor out
         conv_value, conv_adv = torch.split(x, 2, dim=1)  # we need to split this in the right dimension. (C_out)
-        conv_value = torch.permute(conv_value, (0, 2, 3, 1)) # (4, 1, 1, 512) tensor
-        conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))
-        value = self.value_layer(conv_value)  # (4, 1, 1, 512) -> (4, 1, 1, 1)
-        adv = self.adv_layer(conv_adv) # (4, 1, 1, 512) -> (4, 1, 1, 4)
-        adv_average = torch.mean(adv, dim=0, keepdim=True)  # (1, 1, 1, 4) ?
-        q_values = value + adv - adv_average  # is this a Nx1x1x4 tensor???
-        return q_values  # what is this object
+        conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
+        conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
+        value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
+        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 4)
+        adv_average = torch.mean(adv, dim=3, keepdim=True)  # (32, 1, 1, 1)
+        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 4)
+        return torch.flatten(q_values, start_dim=1, end_dim=2)  # (32, 4)
 
     def get_reward(self, spider, game_over):
         """
@@ -79,16 +80,9 @@ class D3QAgent(torch.nn.Module):
         if game_over:
             self.reward -= 0
             return self.reward
-        # if spider.on_platform:
-        #     self.reward += 0
-        # if spider.pos.y < old_state[1]:
-        #     self.reward += 0
-        # if spider.pos.y > old_state[1]:
-        #     self.reward -= 0
         if spider.new_landing:
             self.reward += 1
         return self.reward
-
 
     """
     Does a forward call and returns the index of the action with the highest Q value given a
@@ -98,21 +92,34 @@ class D3QAgent(torch.nn.Module):
     """
     def get_highest_q_action(self, state):
         with torch.no_grad():
-            q_values = self.forward(state) # assuming this is a (1, 1, 4) tensor
-            best_action_index = torch.argmax(q_values, dim=3)  # wrong dimensions
-        return best_action_index.item()  # intended to return an int. unsure if correct
+            q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
+            if q_values.dim() == 3:  # if single state (1, 1, 4)
+                q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
+                best_action_index = torch.argmax(q_values)  # (1)
+                return best_action_index.item()  # int
+            else:  # if batch of states (N, 1, 1, 4)
+                best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
+                best_action_index = torch.flatten(best_action_index)
+                return best_action_index.detach().cpu().numpy()  # N entry nparray
 
     """
     Does a forward call and returns the Q value of an action at a specified index given a state
     and an index. Meant to be used on the target CNN.
-    Input: State sequence of (self.seq_size) frames, Index of specified action
-    Output: Q value of specified action (float)
+    Input: State sequence of (self.seq_size) frames, int index of specified action OR 
+    (N) tensor of indices
+    Output: Q value of specified action (float OR nparray of floats)
     """
     def get_q_value_of_action(self, state, action_index):
         with torch.no_grad():
-            q_values = self.forward(state)  # assuming this is a (1, 1, 4) tensor
-            q_value = torch.flatten(q_values)[action_index]  # wrong dimensions
-        return q_value.item()  # intended to return a float. unsure if correct
+            q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
+            if q_values.dim() == 3:  # if single state (1, 1, 4)
+                q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
+                return q_values[action_index].item()  # float
+            else:  # if batch of states (N, 1, 1, 4)
+                q_values = torch.flatten(q_values, start_dim=1, end_dim=2)  # (N, 4)
+                q_values = q_values.detach().cpu().numpy()  # Nx4 nparray
+                q_of_actions = q_values[range(q_values.shape[0]), action_index]
+                return q_of_actions  # Nx1 nparray of floats
 
 
 class Memory(object):
