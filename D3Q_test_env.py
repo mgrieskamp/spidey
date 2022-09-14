@@ -124,14 +124,16 @@ def update_sequence(game, agent):
 Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
 performs gradient descent.
 """
+
+
 def train_short(memory, main_network, target_network):
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
     for i in range(memory.batch_size):  # ???? for now all q's are assumed to be single int/floats
         argmax_q_main = main_network.get_highest_q_action(new_states[i])
         double_q = target_network.get_q_value_of_action(new_states[i], argmax_q_main)
-        main_network.target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
-        inputt = 1  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
-        loss = F.huber_loss(input=inputt, target=main_network.target, reduction='mean', delta=1.0)
+        target = rewards[i] + main_network.gamma * double_q * (1 - int(terminals[i]))  # Bellman eq
+        predict = target_network.forward(new_states)  # what is the input ??? Q(s_j, a_j) implies Q value of state-action leading to next state
+        loss = F.huber_loss(input=predict, target=target, reduction='mean', delta=1.0)
         main_network.optimizer.zero_grad()
         loss.backward()
         main_network.optimizer.step()
@@ -145,21 +147,48 @@ def training():
 
     replay_memory = D3Q.Memory()
     main_network = D3Q.D3QAgent(q_params)
+    main_network = main_network.to(DEVICE)
     target_network = D3Q.D3QAgent(q_params)
+    target_network = target_network.to(DEVICE)
+
+    scores = []
+    counter = []
     frame = 0
     max_frame = 100000000
     while frame < max_frame:
-        # init game and sequence
-        game = SpiderJumpGame()
-        build_start(game)
-        init_sequence(game, main_network)
         # while gaming do
-            # select action based on epsilon or network
-            # observe frame
-            # do action and observe reward
-            # observe next frame
-            # update memory frames and sequence frames
-            # if time to learn
-                # train_short
-            # if time to update target network
-                # update target network
+        episode_reward = 0
+        episode = 0
+        while episode < q_params['episodes']:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+            game = SpiderJumpGame()
+            build_start(game)
+            init_sequence(game, main_network)
+
+            while not game.game_over:
+                update_sequence(game, main_network)
+                state = main_network.input
+                # select action based on epsilon or network
+                if q_params['train']:
+                    # epsilon (random exploration) decreases as agent trains for longer
+                    main_network.epsilon = 1 - (episode * q_params['epsilon_decay_linear'])
+                else:
+                    main_network.epsilon = 0.01
+                curr_action = [0, 0, 0, 0]
+                if random.uniform(0, 1) < main_network.epsilon:
+                    curr_action[randint(0, 3)] = 1
+                else:
+                    curr_action[main_network.get_highest_q_action()] = 1
+                do_action(game, curr_action)
+                # observe frame
+                # do action and observe reward
+                # observe next frame
+                # update memory frames and sequence frames
+                # if time to learn
+                    # train_short
+                # if time to update target network
+                    # update target network

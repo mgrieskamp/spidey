@@ -26,11 +26,11 @@ class D3QAgent(torch.nn.Module):
 
         self.input = None
 
-        # Convolutional Layers - (N, C_in, H, W) -> (N, C_out, H_out, W_out)
+        # Convolutional Layers - (4, C_in, H, W) -> (4, C_out, H_out, W_out,)
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=7, stride=4, padding='valid', bias=False)
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=8, stride=4, padding='valid', bias=False)
 
         # Output Layers - (*, C_in) -> (*, C_out)
         self.value_layer = nn.Linear(512, 1)
@@ -58,11 +58,13 @@ class D3QAgent(torch.nn.Module):
         x = F.relu(self.conv1(x))  # (4, 1, 200, 200) tensor in
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))  # (4, 1024, 1?, 1?) tensor out
-        conv_value, conv_adv = torch.split(x, 2)  # we need to split this in the right dimension. (C_out)
-        value = self.value_layer(conv_value)  # requires (4, 1?, 1?, 512) tensor
-        adv = self.adv_layer(conv_adv) # requires (4, 1?, 1?, 512) tensor
-        adv_average = torch.mean(adv, dim=1, keepdim=True)  # unknown dimensions
+        x = F.relu(self.conv4(x))  # (4, 1024, 1, 1) tensor out
+        conv_value, conv_adv = torch.split(x, 2, dim=1)  # we need to split this in the right dimension. (C_out)
+        conv_value = torch.permute(conv_value, (0, 2, 3, 1)) # (4, 1, 1, 512) tensor
+        conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))
+        value = self.value_layer(conv_value)  # (4, 1, 1, 512) -> (4, 1, 1, 1)
+        adv = self.adv_layer(conv_adv) # (4, 1, 1, 512) -> (4, 1, 1, 4)
+        adv_average = torch.mean(adv, dim=0, keepdim=True)  # (1, 1, 1, 4) ?
         q_values = value + adv - adv_average  # is this a Nx1x1x4 tensor???
         return q_values  # what is this object
 
