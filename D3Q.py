@@ -40,22 +40,21 @@ class D3QAgent(torch.nn.Module):
         # Updates
         self.target = None  # Bellman equation target Q
         self.action = None  # Action taken
-        self.q = torch.sum(torch.multiply(self.q_values, torch.nn.functional.one_hot(self.action, 4)), dim=1)
-        self.loss = F.huber_loss(input=self.q, target=self.target, reduction='mean', delta=1.0)
         self.optimizer = optim.Adam(self.parameters(), weight_decay=0, lr=self.learning_rate)
-        self.update = self.optimizer.minimize(self.loss)
 
         # Weights
         if self.load_weights:
             self.model = self.load_state_dict(torch.load(self.weights))
             print("weights loaded")
 
-    """
-    Forward call through 4 convolution layers and final split linear layer for dueling.
-    Input: Grayscale normalized image tensor, mini-batches allowed. Dim: (N, C_in, H, W)
-    Output: (N, C_out, H, W) Tensor of q_values for each action
-    """
     def forward(self, x):
+        """
+        Forward call through 4 convolution layers and final split linear layer for dueling.
+
+        Input: Grayscale normalized image tensor, mini-batches allowed. Dim: (N, C_in, H, W)
+
+        Output: (N, C_out, H, W) Tensor of q_values for each action
+        """
         x = F.relu(self.conv1(x))  # (32, 4, 200, 200) tensor in
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
@@ -72,9 +71,10 @@ class D3QAgent(torch.nn.Module):
     def get_reward(self, spider, game_over):
         """
         Return the reward:
-            -100 when game over.
-            +10 when spider lands on platform
-            -0.1 otherwise
+
+        +1 When spider lands on a new platform.
+
+        0 Otherwise
         """
         self.reward = 0
         if game_over:
@@ -84,13 +84,15 @@ class D3QAgent(torch.nn.Module):
             self.reward += 1
         return self.reward
 
-    """
-    Does a forward call and returns the index of the action with the highest Q value given a
-    state. Meant to be used on the main CNN.
-    Input: State sequence of (self.seq_size) frames
-    Output: Index of best action in action list (int)
-    """
     def get_highest_q_action(self, state):
+        """
+        Does a forward call and returns the index of the action with the highest Q value given a
+        state. Meant to be used on the main CNN.
+
+        Input: State sequence of (self.seq_size) frames
+
+        Output: Index of best action in action list (int)
+        """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
             if q_values.dim() == 3:  # if single state (1, 1, 4)
@@ -102,14 +104,16 @@ class D3QAgent(torch.nn.Module):
                 best_action_index = torch.flatten(best_action_index)
                 return best_action_index.detach().cpu().numpy()  # N entry nparray
 
-    """
-    Does a forward call and returns the Q value of an action at a specified index given a state
-    and an index. Meant to be used on the target CNN.
-    Input: State sequence of (self.seq_size) frames, int index of specified action OR 
-    (N) tensor of indices
-    Output: Q value of specified action (float OR nparray of floats)
-    """
     def get_q_value_of_action(self, state, action_index):
+        """
+        Does a forward call and returns the Q value of an action at a specified index given a state
+        and an index. Meant to be used on the target CNN.
+
+        Input: State sequence of (self.seq_size) frames, int index of specified action OR
+        (N) tensor of indices
+
+        Output: Q value of specified action (float OR nparray of floats)
+        """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
             if q_values.dim() == 3:  # if single state (1, 1, 4)
@@ -123,10 +127,10 @@ class D3QAgent(torch.nn.Module):
 
 
 class Memory(object):
-    def __init__(self, size=1000000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
+    def __init__(self, size=100000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
         self.counter = 0
         self.current = 0
-        self.size = size
+        self.size = size  # computer may have overcommitting problems with large sizes
         self.frame_h = frame_h
         self.frame_w = frame_w
         self.batch_size = batch_size
@@ -183,5 +187,4 @@ class Memory(object):
         for i, idx in enumerate(self.indices):
             self.states[i] = self.get_state(idx - 1)
             self.new_states[i] = self.get_state(idx)
-        # TODO: Wrong return dimensions. Look at __init__ for dimensions.
         return self.states, self.actions, self.rewards, self.new_states, self.terminals

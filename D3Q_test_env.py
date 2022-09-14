@@ -80,19 +80,18 @@ def do_action(game, action):
         game.spider.release_jump(game.plats)
 
 
-"""
-Obtains an RGB image of the current game screen, then grayscales and downsizes it to a 200 x 200
-np uint8 array for memory efficiency.
-Input: game object
-Output: grayscale np array (dtype = uint8) of current game frame
-"""
-
-
 def to_grayscale(game):
+    """
+    Obtains an RGB image of the current game screen, then grayscales and downsizes it to a 200 x 200
+    np uint8 array for memory efficiency.
+    @ Input: game object
+    @ Output: grayscale np array (dtype = uint8) of current game frame
+    """
     screen_area = pygame.Rect(0, params.HEIGHT, params.WIDTH, params.HEIGHT)
-    sub_surface = game.displaysurface.subsurface(screen_area)
+    sub_surface = game.displaysurface.subsurface(game.displaysurface.get_rect())
     RGB_data = pygame.surfarray.array3d(sub_surface)
-    tensor_RGB = torch.from_numpy(RGB_data)
+    tensor_RGB = torch.from_numpy(RGB_data)  # (400, 450, 3): (W, H, C)
+    tensor_RGB = torch.permute(tensor_RGB, (2, 1, 0))
     grayscale_tensor = torchvision.transforms.functional.rgb_to_grayscale(tensor_RGB, 1)
     resized_gray = torchvision.transforms.functional.resized_crop(grayscale_tensor, top=400, left=0, height=400,
                                                                   width=400, size=(200, 200))
@@ -102,15 +101,13 @@ def to_grayscale(game):
     return np_efficient
 
 
-"""
-Initializes the first sequence: Updates the agent.input field by cloning the first frame of
-the game into a (seq-size)-layer 3-dim tensor to be used for the first forward.
-"""
-
-
 def init_sequence(game, agent, seq_size):
+    """
+    Initializes the first sequence: Updates the agent.input field by cloning the first frame of
+    the game into a (seq-size)-layer 3-dim tensor to be used for the first forward.
+    """
     first_frame = to_grayscale(game)
-    sequence_frames = np.repeat(first_frame, seq_size, axis=2)
+    sequence_frames = np.repeat(first_frame, seq_size, axis=0)
     sequence_tensor = torch.from_numpy(sequence_frames)
     agent.input = torch.div(sequence_tensor, 255)
 
@@ -120,17 +117,16 @@ def update_sequence(game, agent):
     curr_frame = torch.from_numpy(to_grayscale(game))
     norm_frame = torch.div(curr_frame, 255)
     curr_sequence = agent.input
-    new_sequence = torch.stack((curr_sequence[:, :, 1:], norm_frame), dim=2)
+    new_sequence = torch.cat((curr_sequence[1:, :, :], norm_frame), dim=0)
+    print(new_sequence.size())
     agent.input = new_sequence
 
 
-"""
-Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
-performs minibatch gradient descent.
-"""
-
-
 def replay(memory, main_network, target_network):
+    """
+    Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
+    performs minibatch gradient descent.
+    """
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
     argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
     double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
@@ -172,9 +168,12 @@ def training():
 
             game = SpiderJumpGame()
             build_start(game)
-            init_sequence(game, main_network)
+            init_sequence(game, main_network, 4)
 
             while not game.game_over:
+                # update screen
+                set_background(game.displaysurface, game.background)
+                game.spider.update(game.plats, game.play_plats)
                 # observe frame
                 state = main_network.input
                 # select action based on epsilon or network
@@ -213,10 +212,12 @@ def training():
 
                 # observe reward and next frame
                 update_sequence(game, main_network)
-                new_state = main_network.input
+                # new_state = main_network.input
+                game_frame = to_grayscale(game)
                 reward = main_network.get_reward(game.spider, game.game_over)
+                terminal = game.game_over
                 # update memory frames
-                replay_memory.add_memory(frame=new_state, action=action_ind, reward=reward)
+                replay_memory.add_memory(frame=game_frame, action=action_ind, reward=reward, is_terminal=terminal)
                 frame += 1
                 episode_reward += reward
 
@@ -236,3 +237,7 @@ def training():
             print('Episode Reward: ' + str(episode_reward))
             scores.append(game.spider.score)
             counter.append(episode)
+
+
+if __name__ == '__main__':
+    training()
