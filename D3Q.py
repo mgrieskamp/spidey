@@ -17,7 +17,7 @@ class D3QAgent(torch.nn.Module):
     def __init__(self, params):
         super().__init__()
         self.reward = 0
-        self.gamma = 0.95
+        self.gamma = 0.99
         self.learning_rate = params['learning_rate']
         self.epsilon = 1
         self.memory = None

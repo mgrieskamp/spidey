@@ -171,11 +171,11 @@ def training():
     counter = []
     frame = 0
     max_frame = 100000000
+    episode_reward = 0
+    episode = 0
     while frame < max_frame:
-        # while gaming do
-        episode_reward = 0
-        episode = 0
         while episode < q_params['episodes']:
+            # while gaming do
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -257,6 +257,11 @@ def training():
             episode_reward = 0
             scores.append(game.spider.score)
             counter.append(episode)
+        break
+
+    if q_params['train']:
+        weights = target_network.state_dict()
+        torch.save(weights, q_params['weights_path'])
 
 
 if __name__ == '__main__':
