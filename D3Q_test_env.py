@@ -38,6 +38,7 @@ class SpiderJumpGame:
         self.FramePerSec = pygame.time.Clock()
         self.font_type = pygame.font.SysFont("Verdana", 20)
         self.game_over = False
+        self.rng = np.random.default_rng(seed=2021)
 
 
 def set_background(displaysurface, background):
@@ -159,7 +160,6 @@ def replay(memory, main_network, target_network):
 def training():
     pygame.init()
     q_params = Q_params.params_Q
-    rng = np.random.default_rng(seed=2021)
 
     replay_memory = D3Q.Memory()
     main_network = D3Q.D3QAgent(q_params)
@@ -183,7 +183,7 @@ def training():
                     quit()
 
             game = SpiderJumpGame()
-            build_start(game, rng)
+            build_start(game, game.rng)
             init_sequence(game, main_network, 4)
 
             while not game.game_over:
@@ -216,7 +216,7 @@ def training():
                         if pl.rect.top > params.HEIGHT:
                             pl.kill()
 
-                platforms.plat_gen(game.plats, game.all_sprites, game.play_plats, rng)
+                platforms.plat_gen(game.plats, game.all_sprites, game.play_plats, game.rng)
 
                 game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
                 game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))

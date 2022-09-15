@@ -41,7 +41,7 @@ def plat_gen(plats, all_sprites, play_plats, rng):
 
         while close: # fixed freeze ? (height not < -50)
             pl = Platform(rng)
-            pl.rect = pl.surf.get_rect(center=(rng.integers(width, params.WIDTH - width), rng.integers(-150, -7)))
+            pl.rect = pl.surf.get_rect(center=(rng.integers(width, params.WIDTH - width), rng.integers(-155, -7)))
             close = check(pl, plats)
 
         plats.add(pl)
