@@ -47,28 +47,28 @@ def set_background(displaysurface, background):
         displaysurface.blit(background, (x, y))
 
 
-def set_start_plats(plat_image, plats, all_sprites, play_plats):
-    platform1 = platforms.Platform()
+def set_start_plats(plat_image, plats, all_sprites, play_plats, rng):
+    platform1 = platforms.Platform(rng)
     platform1.surf = pygame.transform.scale(plat_image, (params.WIDTH, 20))
     platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
     platform1.moving = False
     platform1.point = False
     all_sprites.add(platform1)
     plats.add(platform1)
-    for x in range(random.randint(5, 6)):
-        pl = platforms.Platform()
+    for x in range(7):
+        pl = platforms.Platform(rng)
         close = True
         while close:
-            pl = platforms.Platform()
+            pl = platforms.Platform(rng)
             close = platforms.check(pl, plats)
         play_plats.add(pl)
         plats.add(pl)
         all_sprites.add(pl)
 
 
-def build_start(game):
+def build_start(game, rng):
     set_background(game.displaysurface, game.background)
-    set_start_plats(game.plat_image, game.plats, game.all_sprites, game.play_plats)
+    set_start_plats(game.plat_image, game.plats, game.all_sprites, game.play_plats, rng)
 
 
 # 4 possible action states: left, right, jump, release jump
@@ -159,6 +159,7 @@ def replay(memory, main_network, target_network):
 def training():
     pygame.init()
     q_params = Q_params.params_Q
+    rng = np.random.default_rng(seed=2021)
 
     replay_memory = D3Q.Memory()
     main_network = D3Q.D3QAgent(q_params)
@@ -182,7 +183,7 @@ def training():
                     quit()
 
             game = SpiderJumpGame()
-            build_start(game)
+            build_start(game, rng)
             init_sequence(game, main_network, 4)
 
             while not game.game_over:
@@ -215,7 +216,7 @@ def training():
                         if pl.rect.top > params.HEIGHT:
                             pl.kill()
 
-                platforms.plat_gen(game.plats, game.all_sprites, game.play_plats)
+                platforms.plat_gen(game.plats, game.all_sprites, game.play_plats, rng)
 
                 game_score = game.font_type.render(str(game.spider.score), True, (123, 255, 0))
                 game.displaysurface.blit(game_score, (params.WIDTH / 2, 10))
@@ -240,7 +241,7 @@ def training():
 
                 # if time to learn
                 if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
-                    print('replayyyy')
+                    # print('replayyyy')
                     # replay memory
                     loss = replay(replay_memory, main_network, target_network)
                     losses.append(loss)
