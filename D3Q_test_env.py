@@ -38,7 +38,7 @@ class SpiderJumpGame:
         self.FramePerSec = pygame.time.Clock()
         self.font_type = pygame.font.SysFont("Verdana", 20)
         self.game_over = False
-        self.rng = np.random.default_rng(seed=2021)
+        self.rng = np.random.default_rng(seed=2023)
 
 
 def set_background(displaysurface, background):
@@ -175,18 +175,27 @@ def training():
     episode_reward = 0
     episode = 0
     while frame < max_frame:
+        episode_frame = 0
         while episode < q_params['episodes']:
             # while gaming do
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    if q_params['train']:
+                        weights = main_network.state_dict()
+                        torch.save(weights, q_params['weights_path'])
+                    plt.plot(counter, losses, label='huber loss')
+                    plt.plot(counter, scores, label='score')
+                    plt.xlabel('Episode')
+                    plt.legend()
+                    plt.show()
                     pygame.quit()
                     quit()
 
             game = SpiderJumpGame()
             build_start(game, game.rng)
             init_sequence(game, main_network, 4)
-
-            while not game.game_over:
+            episode_loss = []
+            while (not game.game_over) and episode_frame < 3000:
                 # update screen
                 set_background(game.displaysurface, game.background)
                 game.spider.update(game.plats, game.play_plats)
@@ -234,17 +243,22 @@ def training():
                 game_frame = to_grayscale(game)
                 reward = main_network.get_reward(game.spider, game.game_over)
                 terminal = game.game_over
+                if reward > 0:
+                    episode_frame = 0
                 # update memory frames
                 replay_memory.add_memory(frame=game_frame, action=action_ind, reward=reward, is_terminal=terminal)
                 frame += 1
+                episode_frame += 1
                 episode_reward += reward
-
+                loss = 0
                 # if time to learn
                 if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
                     # print('replayyyy')
                     # replay memory
                     loss = replay(replay_memory, main_network, target_network)
-                    losses.append(loss)
+                    # if torch.require(loss):
+                    #     loss = loss.detach().numpy()
+                # episode_loss.append(loss.detach().numpy())
 
                 # if time to update target network
                 if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
@@ -256,13 +270,26 @@ def training():
             print(f'Game {episode}        Score: {game.spider.score}')
             print('Episode Reward: ' + str(episode_reward))
             episode_reward = 0
+            episode_frame = 0
             scores.append(game.spider.score)
             counter.append(episode)
+            # losses.append(np.mean(episode_loss))
+            episode_loss = []
         break
 
     if q_params['train']:
         weights = main_network.state_dict()
         torch.save(weights, q_params['weights_path'])
+
+    plt.plot(counter, losses)
+    plt.xlabel('Episode')
+    plt.ylabel('Huber Loss')
+    plt.show()
+
+    plt.plot(counter, scores)
+    plt.xlabel('Episode')
+    plt.ylabel('Score')
+    plt.show()
 
 
 if __name__ == '__main__':
