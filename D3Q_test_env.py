@@ -131,20 +131,20 @@ def replay(memory, main_network, target_network):
     main_network.train()
     torch.set_grad_enabled(True)
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
-    print(new_states.size())  # good
-    print(new_states.dim())  # good
+    # print(new_states.size())  # good
+    # print(new_states.dim())  # good
     argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
-    print("armgax: " + str(argmax_q_main.shape))  # good (32,)
+    # print("armgax: " + str(argmax_q_main.shape))  # good (32,)
     double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
-    print("double_q: " + str(double_q.shape))  # good
-    print("rewards: " + str(rewards.shape))  # good
-    print("terminals: " + str(terminals.shape))  # good
+    # print("double_q: " + str(double_q.shape))  # good
+    # print("rewards: " + str(rewards.shape))  # good
+    # print("terminals: " + str(terminals.shape))  # good
     target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
-    print("target: ", target)
-    print("actions: ", actions)
+    # print("target: ", target)
+    # print("actions: ", actions)
     # predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(torch.from_numpy(actions).long(), 4)))
     predict = main_network.get_q_value_of_action(states, actions)
-    print("predict: ", predict)
+    # print("predict: ", predict)
     loss = F.huber_loss(input=torch.from_numpy(predict), target=torch.from_numpy(target), reduction='mean', delta=1.0)  # mean reduction
     print("loss: ", loss)
     loss.requires_grad_()
@@ -260,7 +260,7 @@ def training():
         break
 
     if q_params['train']:
-        weights = target_network.state_dict()
+        weights = main_network.state_dict()
         torch.save(weights, q_params['weights_path'])
 
 

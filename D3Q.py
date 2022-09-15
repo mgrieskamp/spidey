@@ -79,7 +79,7 @@ class D3QAgent(torch.nn.Module):
         # print("adv: ", adv.shape)
         # print("value: ", value.shape)
         q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 4)
-        print("q value size: " + str(q_values.size()))
+        # print("q value size: " + str(q_values.size()))
         # q_values = torch.flatten(q_values, start_dim=1, end_dim=(adv.dim() - 2))  # (32, 4)
         # print("q value size 2: " + str(q_values.size()))
         # print(q_values.shape)
@@ -112,7 +112,7 @@ class D3QAgent(torch.nn.Module):
         """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
-            print(q_values.size())
+            # print(q_values.size())
             if state.dim() == 3:  # if single state (1, 1, 4)
                 # print("q_values: ", q_values.shape)
                 q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
@@ -120,9 +120,9 @@ class D3QAgent(torch.nn.Module):
                 return best_action_index.item()  # int
             else:  # if batch of states (N, 1, 1, 4)
                 best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
-                print("bai: " + str(best_action_index.size()))
+                # print("bai: " + str(best_action_index.size()))
                 best_action_index = torch.flatten(best_action_index)
-                print("bai 2: " + str(best_action_index.size()))
+                # print("bai 2: " + str(best_action_index.size()))
                 return best_action_index.detach().cpu().numpy()  # N entry nparray
 
     def get_q_value_of_action(self, state, action_index):
@@ -142,12 +142,12 @@ class D3QAgent(torch.nn.Module):
                 return q_values[action_index].item()  # float
             else:  # if batch of states (N, 1, 1, 4)
                 q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 4)
-                print(q_values.size())
+                # print(q_values.size())
                 q_values = q_values.detach().cpu().numpy()  # Nx4 nparray
-                print(action_index.tolist())
-                print(q_values.shape)
+                # print(action_index.tolist())
+                # print(q_values.shape)
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
-                print("q actions: ", q_of_actions)
+                # print("q actions: ", q_of_actions)
                 return q_of_actions  # Nx1 nparray of floats
 
 
