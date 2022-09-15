@@ -256,9 +256,9 @@ def training():
                     # print('replayyyy')
                     # replay memory
                     loss = replay(replay_memory, main_network, target_network)
-                    # if torch.require(loss):
-                    #     loss = loss.detach().numpy()
-                # episode_loss.append(loss.detach().numpy())
+                    if torch.is_tensor(loss):
+                        loss = loss.item()
+                episode_loss.append(loss)
 
                 # if time to update target network
                 if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
@@ -273,7 +273,7 @@ def training():
             episode_frame = 0
             scores.append(game.spider.score)
             counter.append(episode)
-            # losses.append(np.mean(episode_loss))
+            losses.append(np.mean(episode_loss))
             episode_loss = []
         break
 
