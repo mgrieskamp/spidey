@@ -65,7 +65,7 @@ class D3QAgent(torch.nn.Module):
         # print(x.shape)
         if x.dim() == 3:
             conv_value, conv_adv = torch.split(x, 512, dim=0)  # we need to split this in the right dimension. (C_out)
-            conv_value = torch.permute(conv_value, (1, 2, 0)) # (1, 1, 512)
+            conv_value = torch.permute(conv_value, (1, 2, 0))  # (1, 1, 512)
             conv_adv = torch.permute(conv_adv, (1, 2, 0))
         else:
             conv_value, conv_adv = torch.split(x, 512, dim=1)  # we need to split this in the right dimension. (C_out)
@@ -74,13 +74,14 @@ class D3QAgent(torch.nn.Module):
         # print("conv_value: ", conv_value.shape)
         value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
         adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 4)
-        adv_average = torch.mean(adv, dim=(adv.dim()-1), keepdim=True)  # (32, 1, 1, 1)
+        adv_average = torch.mean(adv, dim=(adv.dim() - 1), keepdim=True)  # (32, 1, 1, 1)
         # print("adv_average: ", adv_average.shape)
         # print("adv: ", adv.shape)
         # print("value: ", value.shape)
         q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 4)
-        # print(q_values.shape)
-        q_values = torch.flatten(q_values, start_dim=1, end_dim=(adv.dim()-2))  # (32, 4)
+        print("q value size: " + str(q_values.size()))
+        # q_values = torch.flatten(q_values, start_dim=1, end_dim=(adv.dim() - 2))  # (32, 4)
+        # print("q value size 2: " + str(q_values.size()))
         # print(q_values.shape)
         return q_values
 
@@ -111,14 +112,17 @@ class D3QAgent(torch.nn.Module):
         """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
-            if q_values.dim() == 3:  # if single state (1, 1, 4)
+            print(q_values.size())
+            if state.dim() == 3:  # if single state (1, 1, 4)
                 # print("q_values: ", q_values.shape)
                 q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
                 best_action_index = torch.argmax(q_values)  # (1)
                 return best_action_index.item()  # int
             else:  # if batch of states (N, 1, 1, 4)
                 best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
+                print("bai: " + str(best_action_index.size()))
                 best_action_index = torch.flatten(best_action_index)
+                print("bai 2: " + str(best_action_index.size()))
                 return best_action_index.detach().cpu().numpy()  # N entry nparray
 
     def get_q_value_of_action(self, state, action_index):
@@ -127,19 +131,23 @@ class D3QAgent(torch.nn.Module):
         and an index. Meant to be used on the target CNN.
 
         Input: State sequence of (self.seq_size) frames, int index of specified action OR
-        (N) tensor of indices
+        size (N,) nparray of indices
 
         Output: Q value of specified action (float OR nparray of floats)
         """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
-            if q_values.dim() == 3:  # if single state (1, 1, 4)
+            if state.dim() == 3:  # if single state (1, 1, 4)
                 q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
                 return q_values[action_index].item()  # float
             else:  # if batch of states (N, 1, 1, 4)
-                q_values = torch.flatten(q_values, start_dim=1, end_dim=2)  # (N, 4)
+                q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 4)
+                print(q_values.size())
                 q_values = q_values.detach().cpu().numpy()  # Nx4 nparray
-                q_of_actions = q_values[range(q_values.shape[0]), action_index]
+                print(action_index.tolist())
+                print(q_values.shape)
+                q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
+                print("q actions: ", q_of_actions)
                 return q_of_actions  # Nx1 nparray of floats
 
 
@@ -204,4 +212,5 @@ class Memory(object):
         for i, idx in enumerate(self.indices):
             self.states[i] = self.get_state(idx - 1)
             self.new_states[i] = self.get_state(idx)
-        return torch.from_numpy(self.states / 255), self.actions, self.rewards, torch.from_numpy(self.new_states / 255), self.terminals
+        return torch.div(torch.from_numpy(self.states), 255), self.actions[self.indices], self.rewards[self.indices], \
+               torch.div(torch.from_numpy(self.new_states), 255), self.terminals[self.indices]

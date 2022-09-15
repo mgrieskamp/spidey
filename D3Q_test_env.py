@@ -19,7 +19,8 @@ import torch.nn.functional as F
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+# DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cpu'
 
 
 class SpiderJumpGame:
@@ -127,12 +128,26 @@ def replay(memory, main_network, target_network):
     Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
     performs minibatch gradient descent.
     """
+    main_network.train()
+    torch.set_grad_enabled(True)
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
+    print(new_states.size())  # good
+    print(new_states.dim())  # good
     argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
+    print("armgax: " + str(argmax_q_main.shape))  # good (32,)
     double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
-    target = rewards + main_network.gamma * double_q * (1 - int(terminals))
-    predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(actions, 4)))
-    loss = F.huber_loss(input=predict, target=target, reduction='mean', delta=1.0)  # mean reduction
+    print("double_q: " + str(double_q.shape))  # good
+    print("rewards: " + str(rewards.shape))  # good
+    print("terminals: " + str(terminals.shape))  # good
+    target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
+    print("target: ", target)
+    print("actions: ", actions)
+    # predict = torch.sum(torch.multiply(main_network.forward(states), torch.nn.functional.one_hot(torch.from_numpy(actions).long(), 4)))
+    predict = main_network.get_q_value_of_action(states, actions)
+    print("predict: ", predict)
+    loss = F.huber_loss(input=torch.from_numpy(predict), target=torch.from_numpy(target), reduction='mean', delta=1.0)  # mean reduction
+    print("loss: ", loss)
+    loss.requires_grad_()
     main_network.optimizer.zero_grad()
     loss.backward()
     main_network.optimizer.step()
@@ -225,6 +240,7 @@ def training():
 
                 # if time to learn
                 if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
+                    print('replayyyy')
                     # replay memory
                     loss = replay(replay_memory, main_network, target_network)
                     losses.append(loss)
