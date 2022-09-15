@@ -38,7 +38,7 @@ class SpiderJumpGame:
         self.FramePerSec = pygame.time.Clock()
         self.font_type = pygame.font.SysFont("Verdana", 20)
         self.game_over = False
-        self.rng = np.random.default_rng(seed=2023)
+        self.rng = np.random.default_rng(seed=2022)
 
 
 def set_background(displaysurface, background):
