@@ -118,7 +118,7 @@ def update_sequence(game, agent):
     norm_frame = torch.div(curr_frame, 255)
     curr_sequence = agent.input
     new_sequence = torch.cat((curr_sequence[1:, :, :], norm_frame), dim=0)
-    print(new_sequence.size())
+    # print(new_sequence.size())
     agent.input = new_sequence
 
 
@@ -183,7 +183,9 @@ def training():
                 if random.uniform(0, 1) < main_network.epsilon:
                     action_ind = randint(0, 3)
                 else:
+                    # print(state.shape)
                     action_ind = main_network.get_highest_q_action(state)
+                    # print("action index: ", action_ind)
                 curr_action[action_ind] = 1
                 # do action
                 do_action(game, curr_action)
@@ -233,8 +235,10 @@ def training():
                     target_network.load_state_dict(main_network.state_dict())
 
             episode += 1
+            print(f'Frame {frame}')
             print(f'Game {episode}        Score: {game.spider.score}')
             print('Episode Reward: ' + str(episode_reward))
+            episode_reward = 0
             scores.append(game.spider.score)
             counter.append(episode)
 

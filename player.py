@@ -202,6 +202,8 @@ class Player(pygame.sprite.Sprite):
                 if self.pos.y < hits[0].rect.bottom:
                     if hits[0].point == True:  # suspicious reference
                         hits[0].point = False
+                        hits[0].image = pygame.image.load('visited_platform.png')
+                        hits[0].surf = pygame.transform.scale(hits[0].image, (hits[0].width, 12))
                         self.score += 1
                         self.new_landing = True
                     self.pos.y = hits[0].rect.top + 1

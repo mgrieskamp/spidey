@@ -30,7 +30,7 @@ class D3QAgent(torch.nn.Module):
         # Dimension will be: (32, 4, 200, 200) -> (32, C_out, H_out, W_out)
         self.conv1 = nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
         self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=8, stride=4, padding='valid', bias=False)
 
         # Output Layers - (*, C_in) -> (*, C_out)
@@ -55,18 +55,34 @@ class D3QAgent(torch.nn.Module):
 
         Output: (N, C_out, H, W) Tensor of q_values for each action
         """
+        # if x.dim() == 3:
+        #     x = x[None, :]
+        # print(x.shape)
         x = F.relu(self.conv1(x))  # (32, 4, 200, 200) tensor in
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = F.relu(self.conv4(x))  # (32, 1024, 1, 1) tensor out
-        conv_value, conv_adv = torch.split(x, 2, dim=1)  # we need to split this in the right dimension. (C_out)
-        conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
-        conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
+        # print(x.shape)
+        if x.dim() == 3:
+            conv_value, conv_adv = torch.split(x, 512, dim=0)  # we need to split this in the right dimension. (C_out)
+            conv_value = torch.permute(conv_value, (1, 2, 0)) # (1, 1, 512)
+            conv_adv = torch.permute(conv_adv, (1, 2, 0))
+        else:
+            conv_value, conv_adv = torch.split(x, 512, dim=1)  # we need to split this in the right dimension. (C_out)
+            conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
+            conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512) tensor
+        # print("conv_value: ", conv_value.shape)
         value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
         adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 4)
-        adv_average = torch.mean(adv, dim=3, keepdim=True)  # (32, 1, 1, 1)
+        adv_average = torch.mean(adv, dim=(adv.dim()-1), keepdim=True)  # (32, 1, 1, 1)
+        # print("adv_average: ", adv_average.shape)
+        # print("adv: ", adv.shape)
+        # print("value: ", value.shape)
         q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 4)
-        return torch.flatten(q_values, start_dim=1, end_dim=2)  # (32, 4)
+        # print(q_values.shape)
+        q_values = torch.flatten(q_values, start_dim=1, end_dim=(adv.dim()-2))  # (32, 4)
+        # print(q_values.shape)
+        return q_values
 
     def get_reward(self, spider, game_over):
         """
@@ -96,6 +112,7 @@ class D3QAgent(torch.nn.Module):
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 200, 200) -> (N, 1, 1, 4)
             if q_values.dim() == 3:  # if single state (1, 1, 4)
+                # print("q_values: ", q_values.shape)
                 q_values = torch.flatten(q_values)  # (1, 1, 4) -> (4)
                 best_action_index = torch.argmax(q_values)  # (1)
                 return best_action_index.item()  # int
@@ -127,7 +144,7 @@ class D3QAgent(torch.nn.Module):
 
 
 class Memory(object):
-    def __init__(self, size=100000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
+    def __init__(self, size=500000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
         self.counter = 0
         self.current = 0
         self.size = size  # computer may have overcommitting problems with large sizes
@@ -187,4 +204,4 @@ class Memory(object):
         for i, idx in enumerate(self.indices):
             self.states[i] = self.get_state(idx - 1)
             self.new_states[i] = self.get_state(idx)
-        return self.states, self.actions, self.rewards, self.new_states, self.terminals
+        return torch.from_numpy(self.states / 255), self.actions, self.rewards, torch.from_numpy(self.new_states / 255), self.terminals

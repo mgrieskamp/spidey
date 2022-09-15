@@ -7,10 +7,11 @@ import params
 class Platform(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
+
         self.image = pygame.image.load('wood_platform.png')
         self.image.set_colorkey((0,0,0))
-        width = random.randint(65, 100)
-        self.surf = pygame.transform.scale(self.image, (width, 12))
+        self.width = random.randint(65, 100)
+        self.surf = pygame.transform.scale(self.image, (self.width, 12))
         self.rect = self.surf.get_rect(
             center=(random.randint(51, params.WIDTH - 51), random.randint(7, params.HEIGHT - 7)))
         self.speed = random.randint(-1, 1)
