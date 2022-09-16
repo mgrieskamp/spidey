@@ -25,14 +25,14 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def init_params():
     q_params = dict()
-    q_params['learning_rate'] = 0.00025
+    q_params['learning_rate'] = 0.00001
     q_params['update_frequency'] = 4
-    q_params['net_update_frequency'] = 10000
-    q_params['replay_start'] = 50000
-    q_params['anneal_frames'] = 1000000
+    q_params['net_update_frequency'] = 1000
+    q_params['replay_start'] = 10000
+    q_params['anneal_frames'] = 500000
     q_params['episode_max_frame'] = 18000
-    q_params['epoch_max_frame'] = 200000
-    q_params['max_frames'] = 2400000
+    q_params['epoch_max_frame'] = 100000
+    q_params['max_frames'] = 2000000
     q_params['weights_path'] = 'atari_weights.pt'
     q_params['load_weights'] = False
     return q_params
@@ -133,7 +133,7 @@ class D3QAgent(torch.nn.Module):
 
         # Annealing epsilon
         self.epsilon_init = 1
-        self.epsilon_final = 0.1
+        self.epsilon_final = 0.01
         self.epsilon_decay = 0.01
         self.replay_start_size = params['replay_start']
         self.anneal_frames = params['anneal_frames']
@@ -158,7 +158,7 @@ class D3QAgent(torch.nn.Module):
         # Updates
         self.target = None  # Bellman equation target Q
         self.action = None  # Action taken
-        self.optimizer = optim.Adam(self.parameters(), weight_decay=0, lr=self.learning_rate)
+        self.optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
 
         # Weights
         if self.load_weights:
@@ -363,10 +363,10 @@ def training():
                     next_frame, reward, terminal, terminal_life_lost = atari.step(action)
                     frame += 1
                     epoch_frame += 1
-                    normed_reward = norm_reward(reward)
+                    # normed_reward = norm_reward(reward)
                     normed_action = norm_action(action)
-                    episode_reward += normed_reward
-                    replay_memory.add_memory(next_frame, normed_action, normed_reward, terminal_life_lost)
+                    episode_reward += reward
+                    replay_memory.add_memory(next_frame, normed_action, reward, terminal_life_lost)
 
                     # Perform gradient descent
                     loss = 0
