@@ -28,7 +28,7 @@ def init_params():
     q_params['learning_rate'] = 0.00025
     q_params['update_frequency'] = 4
     q_params['net_update_frequency'] = 10000
-    q_params['replay_start'] = 50000
+    q_params['replay_start'] = 50
     q_params['anneal_frames'] = 1000000
     q_params['episode_max_frame'] = 18000
     q_params['epoch_max_frame'] = 200000
@@ -70,6 +70,7 @@ def replay(memory, main_network, target_network):
     Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
     performs minibatch gradient descent.
     """
+    loss = nn.HuberLoss(reduction='mean', delta=1.0)
     main_network.train()
     torch.set_grad_enabled(True)
     states, actions, rewards, new_states, terminals = memory.get_minibatch()
@@ -77,13 +78,12 @@ def replay(memory, main_network, target_network):
     double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
     target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
     predict = main_network.get_q_value_of_action(states, actions)
-    loss = F.huber_loss(input=torch.from_numpy(predict), target=torch.from_numpy(target), reduction='mean',
-                        delta=1.0)  # mean reduction
-    loss.requires_grad_()
+    error = loss(input=torch.from_numpy(predict), target=torch.from_numpy(target))
+    error.requires_grad_()
     main_network.optimizer.zero_grad()
-    loss.backward()
+    error.backward()
     main_network.optimizer.step()
-    return loss
+    return error
 
 
 class Atari(object):
@@ -230,6 +230,9 @@ class D3QAgent(torch.nn.Module):
                 q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 2)
                 q_values = q_values.detach().cpu().numpy()  # Nx2 nparray
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
+                print('actions: ', action_index)
+                print('q_values: ', q_values)
+                print('q of actions: ', q_of_actions)
                 return q_of_actions  # Nx1 nparray of floats
 
     def choose_action(self, state, frame_num):
