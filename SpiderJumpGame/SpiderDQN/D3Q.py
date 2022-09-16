@@ -1,14 +1,9 @@
 import random
 import numpy as np
-import pandas as pd
-from operator import add
-import collections
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import copy
-import params
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 

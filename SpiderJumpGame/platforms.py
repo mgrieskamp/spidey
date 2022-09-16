@@ -1,6 +1,4 @@
-import random
 import pygame
-import numpy as np
 from pygame.locals import *
 import params
 

@@ -1,40 +1,38 @@
-import pygame
-import player
-import platforms
-import params
-import sys
-import spritesheet
-import time
-import itertools
 from random import randint
 import random
-import Q_params
-import statistics
 import torch
 import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 import gym
-import imageio
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def init_params():
     q_params = dict()
-    q_params['learning_rate'] = 0.00001
-    q_params['update_frequency'] = 4
-    q_params['net_update_frequency'] = 1000
+    q_params['env_name'] = "PongNoFrameskip-v4"
+    q_params['render_game'] = False
+    q_params['seed'] = 42
+    q_params['device'] = "cuda" if torch.cuda.is_available() else "cpu"
+    q_params['learning_rate'] = 0.0001
+    q_params['batch_size'] = 32
+    q_params['gamma'] = 0.99
+    q_params['m_update_frequency'] = 1
+    q_params['t_update_frequency'] = 1000
+    q_params['memory_size'] = 5000
     q_params['replay_start'] = 10000
-    q_params['anneal_frames'] = 500000
-    q_params['episode_max_frame'] = 18000
-    q_params['epoch_max_frame'] = 100000
-    q_params['max_frames'] = 2000000
+    q_params['max_frames'] = 1000000
+    q_params['epsilon_init'] = 1
+    q_params['epsilon_final'] = 0.01
+    q_params['e_scale_factor'] = 0.1
     q_params['weights_path'] = 'atari_weights.pt'
     q_params['load_weights'] = False
+
+    np.random.seed(q_params["seed"])
+    random.seed(q_params["seed"])
     return q_params
 
 
@@ -47,43 +45,6 @@ def grayscale(frame):
     np_gray = resized_gray.detach().cpu().numpy()
     np_efficient = np_gray.astype(dtype=np.uint8)
     return np_efficient
-
-
-def norm_reward(reward):
-    if reward > 0:
-        return 1
-    elif reward < 0:
-        return -1
-    else:
-        return 0
-
-
-def norm_action(action):
-    if action == 2:
-        return 0
-    else:
-        return 1
-
-
-def replay(memory, main_network, target_network):
-    """
-    Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
-    performs minibatch gradient descent.
-    """
-    loss = nn.HuberLoss(reduction='mean', delta=1.0)
-    main_network.train()
-    torch.set_grad_enabled(True)
-    states, actions, rewards, new_states, terminals = memory.get_minibatch()
-    argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
-    double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
-    target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
-    predict = main_network.get_q_value_of_action(states, actions)
-    error = loss(input=torch.from_numpy(predict), target=torch.from_numpy(target))
-    error.requires_grad_()
-    main_network.optimizer.zero_grad()
-    error.backward()
-    main_network.optimizer.step()
-    return error
 
 
 class Atari(object):
@@ -122,43 +83,24 @@ class Atari(object):
         return grayscale_frame, reward, terminal, terminal_life_lost
 
 
-class D3QAgent(torch.nn.Module):
-    def __init__(self, params):
+class D2Q(torch.nn.Module):
+    def __init__(self):
         super().__init__()
-        self.reward = 0
-        self.gamma = 0.99
-        self.learning_rate = params['learning_rate']
-        self.weights = params['weights_path']
-        self.load_weights = params['load_weights']
 
-        # Annealing epsilon
-        self.epsilon_init = 1
-        self.epsilon_final = 0.01
-        self.epsilon_decay = 0.01
-        self.replay_start_size = params['replay_start']
-        self.anneal_frames = params['anneal_frames']
-        self.max_frames = params['max_frames']
-        self.slope = -(self.epsilon_init - self.epsilon_final) / self.anneal_frames
-        self.intercept = self.epsilon_init - self.slope * self.replay_start_size
-        self.slope_2 = -(self.epsilon_final - self.epsilon_decay) / (self.max_frames - self.anneal_frames
-                                                                     - self.replay_start_size)
-        self.intercept_2 = self.epsilon_decay - self.slope_2 * self.max_frames
+        # Convolutional Layers
+        self.convoluted = nn.Sequential(
+            nn.Conv2d(in_channels=4, out_channels=16, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
+            nn.ReLU()
+        )
 
-        # Convolutional Layers - (N, C_in, H, W) -> (N, C_out, H_out, W_out)
-        # Dimension will be: (32, 4, 84, 84) -> (32, C_out, H_out, W_out)
-        self.conv1 = nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4, padding='valid', bias=False)
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding='valid', bias=False)
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='valid', bias=False)
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=1024, kernel_size=7, stride=1, padding='valid', bias=False)
-
-        # Output Layers - (*, C_in) -> (*, C_out)
-        self.value_layer = nn.Linear(512, 1)
-        self.adv_layer = nn.Linear(512, 2)
-
-        # Updates
-        self.target = None  # Bellman equation target Q
-        self.action = None  # Action taken
-        self.optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
+        # Fully Connected Layers
+        self.fully_connected = nn.Sequential(
+            nn.Linear(in_features=32 * 9 * 9, out_features=256),
+            nn.ReLU(),
+            nn.Linear(in_features=256, out_features=6)
+        )
 
         # Weights
         if self.load_weights:
@@ -173,23 +115,9 @@ class D3QAgent(torch.nn.Module):
 
         Output: (N, C_out, H, W) Tensor of q_values for each action
         """
-        x = F.relu(self.conv1(x))  # (32, 4, 84, 84) tensor in
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))  # (32, 1024, 1, 1) tensor out
-        if x.dim() == 3:
-            conv_value, conv_adv = torch.split(x, 512, dim=0)  # (512, 1, 1)
-            conv_value = torch.permute(conv_value, (1, 2, 0))  # (1, 1, 512)
-            conv_adv = torch.permute(conv_adv, (1, 2, 0))  # (1, 1, 512)
-        else:
-            conv_value, conv_adv = torch.split(x, 512, dim=1)  # (32, 512, 1, 1)
-            conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512)
-            conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512)
-        value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
-        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 2)
-        adv_average = torch.mean(adv, dim=(adv.dim() - 1), keepdim=True)  # (32, 1, 1, 1)
-        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 2)
-        return q_values
+        conv_out = self.convoluted(x)
+        conv_out = conv_out.reshape(x.size()[0], -1)
+        return self.fully_connected(conv_out)
 
     def get_highest_q_action(self, state):
         """
@@ -232,22 +160,52 @@ class D3QAgent(torch.nn.Module):
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
                 return q_of_actions  # Nx1 nparray of floats
 
-    def choose_action(self, state, frame_num):
-        if frame_num < self.replay_start_size:
-            epsilon = self.epsilon_init
-        elif self.replay_start_size <= frame_num < self.replay_start_size + self.anneal_frames:
-            epsilon = self.slope * frame_num + self.intercept
-        else:
-            epsilon = self.slope_2 * frame_num + self.intercept_2
+class D2QAgent:
+    def __init__(self, params):
+        self.memory = Memory(params['memory_size'])
+        self.batch_size = params['batch_size']
+        self.gamma = params['gamma']
+        self.device = params['device']
 
-        if random.uniform(0, 1) < epsilon:
-            return randint(2, 3)
-        else:
-            action_norm = self.get_highest_q_action(state)
-            if action_norm == 0:
-                return 2
-            else:
-                return 3
+        self.main_network = D2Q().to(self.device)
+        self.target_network = D2Q().to(self.device)
+        self.update_target_network()
+        self.target_network.eval()
+
+        self.optimizer = torch.optim.RMSprop(self.main_network.parameters(), lr=params['learning_rate'])
+
+    def update_target_network(self):
+        self.target_network.load_state_dict(self.main_network.state_dict())
+
+    def replay(self):
+        """
+        Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
+        performs minibatch gradient descent.
+        """
+        states, actions, rewards, new_states, terminals = memory.get_minibatch()
+
+        with torch.no_grad():
+            argmax_q_main = self.main_network.get_highest_q_action(new_states)  # size N nparray
+            double_q = self.target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
+            target = rewards + self.gamma * double_q * (1 - terminals.astype(int))
+
+        predict = self.main_network.get_q_value_of_action(states, actions)
+        loss = F.smooth_l1_loss(input=torch.from_numpy(predict), target=torch.from_numpy(target))
+
+        loss.requires_grad_()
+        self.main_network.optimizer.zero_grad()
+        loss.backward()
+        self.main_network.optimizer.step()
+        del states
+        del new_states
+        return loss.item()
+
+    def choose_action(self, state):
+        state = np.array(state) / 255.0
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            return self.main_network.get_highest_q_action(state)
+
 
 
 class Memory(object):
@@ -320,7 +278,6 @@ class Memory(object):
 
 
 def training():
-
     q_params = init_params()
 
     # Initialize memory and networks
@@ -347,6 +304,7 @@ def training():
     atari = Atari(env_name, render_game)
     print("The environment has the following {} actions: {}".format(atari.env.action_space.n,
                                                                     atari.env.unwrapped.get_action_meanings()))
+
     try:
         while frame < max_frame:
             epoch_frame = 0
@@ -395,6 +353,10 @@ def training():
     except KeyboardInterrupt:
         print('Interrupted')
         return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
+
+    except KeyboardInterrupt:
+        print('Interrupted!')
+        return episode_rewards, avg_episode_loss, d2q.main_network.state_dict()
 
 
 def plotter(episode_num, episode_rewards, avg_episode_loss):

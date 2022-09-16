@@ -1,23 +1,14 @@
 import pygame
 import D3Q
-import player
-import platforms
-import params
-import sys
-import spritesheet
-import time
+from SpiderJumpGame import platforms, params, player
 import itertools
-from deepQ import DeepQAgent
 from random import randint
 import random
-import Q_params
-import statistics
-import torch.optim as optim
+from SpiderJumpGame.SpiderDQN import Q_params
 import torch
 import torchvision
 import torch.nn.functional as F
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 # DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE = 'cpu'

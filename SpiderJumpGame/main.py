@@ -1,11 +1,9 @@
-import random
 import sys
 import pygame
 from pygame.locals import *
 import player
 import platforms
 import params
-import spritesheet
 import time
 import itertools
 
