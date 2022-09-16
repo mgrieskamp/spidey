@@ -10,7 +10,7 @@ params_Q['episodes'] = 5000
 params_Q['batch_size'] = 3000
 params_Q['update_frequency'] = 4
 params_Q['net_update_frequency'] = 10000
-params_Q['replay_start'] = 50
+params_Q['replay_start'] = 50000
 params_Q['anneal_frames'] = 1000000
 params_Q['max_frames'] = 2400000
 # Settings

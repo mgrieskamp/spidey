@@ -20,8 +20,22 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import gym
 import imageio
-
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+def init_params():
+    q_params = dict()
+    q_params['learning_rate'] = 0.00025
+    q_params['update_frequency'] = 4
+    q_params['net_update_frequency'] = 10000
+    q_params['replay_start'] = 50000
+    q_params['anneal_frames'] = 1000000
+    q_params['episode_max_frame'] = 18000
+    q_params['epoch_max_frame'] = 200000
+    q_params['max_frames'] = 2400000
+    q_params['weights_path'] = 'atari_weights.pt'
+    q_params['load_weights'] = False
+    return q_params
 
 
 def grayscale(frame):
@@ -42,6 +56,13 @@ def norm_reward(reward):
         return -1
     else:
         return 0
+
+
+def norm_action(action):
+    if action == 2:
+        return 0
+    else:
+        return 1
 
 
 def replay(memory, main_network, target_network):
@@ -132,7 +153,7 @@ class D3QAgent(torch.nn.Module):
 
         # Output Layers - (*, C_in) -> (*, C_out)
         self.value_layer = nn.Linear(512, 1)
-        self.adv_layer = nn.Linear(512, 6)
+        self.adv_layer = nn.Linear(512, 2)
 
         # Updates
         self.target = None  # Bellman equation target Q
@@ -165,9 +186,9 @@ class D3QAgent(torch.nn.Module):
             conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512)
             conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512)
         value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
-        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 6)
+        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 3)
         adv_average = torch.mean(adv, dim=(adv.dim() - 1), keepdim=True)  # (32, 1, 1, 1)
-        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 6)
+        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 3)
         return q_values
 
     def get_highest_q_action(self, state):
@@ -180,12 +201,12 @@ class D3QAgent(torch.nn.Module):
         Output: Index of best action in action list (int)
         """
         with torch.no_grad():
-            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 6)
-            if state.dim() == 3:  # if single state (1, 1, 6)
-                q_values = torch.flatten(q_values)  # (1, 1, 6) -> (6)
+            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 2)
+            if state.dim() == 3:  # if single state (1, 1, 2)
+                q_values = torch.flatten(q_values)  # (1, 1, 2) -> (2)
                 best_action_index = torch.argmax(q_values)  # (1)
                 return best_action_index.item()  # int
-            else:  # if batch of states (N, 1, 1, 6)
+            else:  # if batch of states (N, 1, 1, 2)
                 best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
                 best_action_index = torch.flatten(best_action_index)  # (N)
                 return best_action_index.detach().cpu().numpy()  # size N nparray
@@ -201,12 +222,12 @@ class D3QAgent(torch.nn.Module):
         Output: Q value of specified action (float OR nparray of floats)
         """
         with torch.no_grad():
-            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 6)
-            if state.dim() == 3:  # if single state (1, 1, 6)
-                q_values = torch.flatten(q_values)  # (1, 1, 6) -> (6)
+            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 2)
+            if state.dim() == 3:  # if single state (1, 1, 2)
+                q_values = torch.flatten(q_values)  # (1, 1, 2) -> (2)
                 return q_values[action_index].item()  # float
-            else:  # if batch of states (N, 1, 1, 6)
-                q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 6)
+            else:  # if batch of states (N, 1, 1, 2)
+                q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 2)
                 q_values = q_values.detach().cpu().numpy()  # Nx2 nparray
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
                 return q_of_actions  # Nx1 nparray of floats
@@ -220,9 +241,13 @@ class D3QAgent(torch.nn.Module):
             epsilon = self.slope_2 * frame_num + self.intercept_2
 
         if random.uniform(0, 1) < epsilon:
-            return randint(0, 5)
+            return randint(2, 3)
         else:
-            return self.get_highest_q_action(state)
+            action_norm = self.get_highest_q_action(state)
+            if action_norm == 0:
+                return 2
+            else:
+                return 3
 
 
 class Memory(object):
@@ -296,7 +321,7 @@ class Memory(object):
 
 def training():
 
-    q_params = Q_params.params_Q
+    q_params = init_params()
 
     # Initialize memory and networks
     replay_memory = Memory()
@@ -310,9 +335,9 @@ def training():
     episode_rewards = []
     frame = 0
     max_frame = q_params['max_frames']
-    epoch_max_frame = 100000
+    epoch_max_frame = q_params['epoch_max_frame']
+    episode_max_frame = q_params['episode_max_frame']
     episode_num = 0
-    episode_max_frame = 18000
 
     # Initialize atari game
     # pip3 install gym[atari,accept-rom-license]==0.21.0
@@ -338,8 +363,9 @@ def training():
                     frame += 1
                     epoch_frame += 1
                     normed_reward = norm_reward(reward)
+                    normed_action = norm_action(action)
                     episode_reward += normed_reward
-                    replay_memory.add_memory(next_frame, action, normed_reward, terminal_life_lost)
+                    replay_memory.add_memory(next_frame, normed_action, normed_reward, terminal_life_lost)
 
                     # Perform gradient descent
                     loss = 0
@@ -356,15 +382,14 @@ def training():
                     if terminal:
                         break
 
-                    if not loss == 0:
-                        print(loss)
-
                 episode_num += 1
                 episode_rewards.append(episode_reward)
                 avg_episode_loss.append(np.mean(episode_loss))
+                print('---------------------------------')
                 print(f'Frame {frame}')
                 print(f'Game {episode_num}')
                 print('Episode Reward: ' + str(episode_reward))
+                print('Episode Loss: ' + str(np.mean(episode_loss)))
         return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
     except KeyboardInterrupt:
         print('Interrupted')
@@ -385,7 +410,6 @@ def plotter(episode_num, episode_rewards, avg_episode_loss):
 
 
 if __name__ == '__main__':
-    if __name__ == '__main__':
         episode_num, episode_rewards, avg_episode_loss, main_network_weights = training()
         torch.save(main_network_weights, 'atari_weights.pt')
         plotter(episode_num, episode_rewards, avg_episode_loss)
