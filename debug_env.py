@@ -8,15 +8,14 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 import gym
-import Atari_wrappers
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def init_params():
     q_params = dict()
     q_params['learning_rate'] = 0.00001
-    q_params['update_frequency'] = 1
-    q_params['net_update_frequency'] = 10000
+    q_params['update_frequency'] = 4
+    q_params['net_update_frequency'] = 1
     q_params['replay_start'] = 10001
     q_params['anneal_frames'] = 1000000
     q_params['episode_max_frame'] = 18000
@@ -66,12 +65,14 @@ def replay(memory, main_network, target_network):
     double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
     target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
     predict = main_network.get_q_value_of_action(states, actions)
-    loss = F.smooth_l1_loss(predict, target)
+    loss = F.smooth_l1_loss(torch.from_numpy(predict), torch.from_numpy(target))
     loss.requires_grad_()
     main_network.optimizer.zero_grad()
     loss.backward()
+    print(main_network.parameters())
     for param in main_network.parameters():
-        param.grad.data.clamp_(-1, 1)
+        if param.grad:
+            param.grad.data.clamp_(-1, 1)
     main_network.optimizer.step()
     return loss
 
@@ -81,8 +82,7 @@ class Atari(object):
         if render_game:
             self.env = gym.make(env_name, render_mode='human', repeat_action_probability=0.0)
         else:
-            self.env = gym.make(env_name, frameskip=2, repeat_action_probability=0.0)
-        self.env = Atari_wrappers.wrap_deepmind(self.env, episode_life=True, clip_rewards=True, frame_stack=True, scale=False)
+            self.env = gym.make(env_name,repeat_action_probability=0.0)
         self.seq_size = 4
         self.curr_frame = np.empty((1, 84, 84), dtype=np.uint8)
         self.state = np.empty((self.seq_size, 84, 84), dtype=np.uint8)
@@ -124,7 +124,7 @@ class D3QAgent(torch.nn.Module):
 
         # Annealing epsilon
         self.epsilon_init = 1
-        self.epsilon_final = 0.1
+        self.epsilon_final = 0.01
         self.epsilon_decay = 0.01
         self.replay_start_size = params['replay_start']
         self.anneal_frames = params['anneal_frames']
@@ -169,6 +169,7 @@ class D3QAgent(torch.nn.Module):
         # get advantage by subtracting dueling action mean from dueling action
         # then add estimated state value
         q_values = self.dueling_action(x) - self.dueling_action(x).mean(dim=1, keepdim=True) + self.dueling_value(x)
+        print(q_values.shape)
         return q_values
 
 
@@ -183,14 +184,8 @@ class D3QAgent(torch.nn.Module):
         """
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 2)
-            if state.dim() == 3:  # if single state (1, 1, 2)
-                q_values = torch.flatten(q_values)  # (1, 1, 2) -> (2)
-                best_action_index = torch.argmax(q_values)  # (1)
-                return best_action_index.item()  # int
-            else:  # if batch of states (N, 1, 1, 2)
-                best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
-                best_action_index = torch.flatten(best_action_index)  # (N)
-                return best_action_index.detach().cpu().numpy()  # size N nparray
+            best_action_index = torch.argmax(q_values, dim=1, keepdim=True)  # (1)
+            return best_action_index.detach().cpu().numpy()  # size N nparray
 
     def get_q_value_of_action(self, state, action_index):
         """
@@ -205,10 +200,9 @@ class D3QAgent(torch.nn.Module):
         with torch.no_grad():
             q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 6)
             if state.dim() == 3:  # if single state (1, 1, 6)
-                q_values = torch.flatten(q_values)  # (1, 1, 6) -> (6)
+                q_values = torch.flatten(q_values)  # (1, 6) -> (6)
                 return q_values[action_index].item()  # float
             else:  # if batch of states (N, 1, 1, 6)
-                q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 6)
                 q_values = q_values.detach().cpu().numpy()  # Nx6 nparray
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
                 return q_of_actions  # Nx1 nparray of floats
@@ -220,15 +214,11 @@ class D3QAgent(torch.nn.Module):
             epsilon = self.slope * frame_num + self.intercept
         else:
             epsilon = self.slope_2 * frame_num + self.intercept_2
-
         if random.uniform(0, 1) < epsilon:
             return randint(0, 5)
         else:
             action_norm = self.get_highest_q_action(state)
-            if action_norm == 0:
-                return 2
-            else:
-                return 3
+
 
     def update_network(self, main_network, tau=0.001):
         for target_var, var in zip(self.parameters(), main_network.parameters()):
@@ -326,7 +316,7 @@ def training():
 
     # Initialize atari game
     # pip3 install gym[atari,accept-rom-license]==0.21.0
-    env_name = "ALE/PongNoFrameskip-v4"
+    env_name = "PongNoFrameskip-v4"
     render_game = False
     atari = Atari(env_name, render_game)
     print("The environment has the following {} actions: {}".format(atari.env.action_space.n,
