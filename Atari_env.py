@@ -20,8 +20,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import gym
 import imageio
-# DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-DEVICE = 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def init_params():
@@ -90,9 +89,9 @@ def replay(memory, main_network, target_network):
 class Atari(object):
     def __init__(self, env_name, render_game, no_op_steps=10):
         if render_game:
-            self.env = gym.make(env_name, render_mode='human')
+            self.env = gym.make(env_name, render_mode='human', frameskip=2, repeat_action_probability=0.0)
         else:
-            self.env = gym.make(env_name)
+            self.env = gym.make(env_name, frameskip=2, repeat_action_probability=0.0)
         self.seq_size = 4
         self.curr_frame = np.empty((1, 84, 84), dtype=np.uint8)
         self.state = np.empty((self.seq_size, 84, 84), dtype=np.uint8)
@@ -187,9 +186,9 @@ class D3QAgent(torch.nn.Module):
             conv_value = torch.permute(conv_value, (0, 2, 3, 1))  # (32, 1, 1, 512)
             conv_adv = torch.permute(conv_adv, (0, 2, 3, 1))  # (32, 1, 1, 512)
         value = self.value_layer(conv_value)  # (32, 1, 1, 512) -> (32, 1, 1, 1)
-        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 3)
+        adv = self.adv_layer(conv_adv)  # (32, 1, 1, 512) -> (32, 1, 1, 2)
         adv_average = torch.mean(adv, dim=(adv.dim() - 1), keepdim=True)  # (32, 1, 1, 1)
-        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 3)
+        q_values = torch.subtract(torch.add(adv, value), adv_average)  # broadcast (32, 1, 1, 2)
         return q_values
 
     def get_highest_q_action(self, state):
