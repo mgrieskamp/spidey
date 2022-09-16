@@ -6,84 +6,79 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
+import statistics
 import matplotlib.pyplot as plt
 import gym
 from Atari_wrappers import *
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def init_params():
     q_params = dict()
     q_params['env_name'] = "PongNoFrameskip-v4"
+    q_params['render_game'] = False
     q_params['seed'] = 42
-    q_params['learning_rate'] = 0.00001
-    q_params['update_frequency'] = 4
-    q_params['net_update_frequency'] = 1000
+    q_params['device'] = "cuda" if torch.cuda.is_available() else "cpu"
+    q_params['learning_rate'] = 0.0001
+    q_params['batch_size'] = 32
+    q_params['gamma'] = 0.99
+    q_params['m_update_frequency'] = 1
+    q_params['t_update_frequency'] = 1000
+    q_params['memory_size'] = 5000
     q_params['replay_start'] = 10000
-    q_params['anneal_frames'] = 500000
-    q_params['episode_max_frame'] = 18000
-    q_params['epoch_max_frame'] = 100000
-    q_params['max_frames'] = 2000000
-    q_params['weights_path'] = 'atari_weights.pt'
+    q_params['max_frames'] = 1000000
+    q_params['epsilon_init'] = 1
+    q_params['epsilon_final'] = 0.01
+    q_params['e_scale_factor'] = 0.1
+    q_params['weights_path'] = 'atari_weights_2.pt'
     q_params['load_weights'] = False
+
+    np.random.seed(q_params["seed"])
+    random.seed(q_params["seed"])
     return q_params
 
 
-def grayscale(frame):
-    tensor_rgb = torch.from_numpy(frame)  # Atari frames: (210, 160, 3)
-    tensor_rgb = torch.permute(tensor_rgb, (2, 1, 0))  # (3, 160, 210)
-    grayscale_tensor = torchvision.transforms.functional.rgb_to_grayscale(tensor_rgb, 1)  # (1, 160, 210)
-    resized_gray = torchvision.transforms.functional.resized_crop(grayscale_tensor, top=34, left=0, height=160,
-                                                                  width=160, size=(84, 84))  # (1, 84, 84)
-    np_gray = resized_gray.detach().cpu().numpy()
-    np_efficient = np_gray.astype(dtype=np.uint8)
-    return np_efficient
+class Memory(object):
+    def __init__(self, size):
+        self._storage = []
+        self._maxsize = size
+        self._next_idx = 0
 
+    def __len__(self):
+        return len(self._storage)
 
-def norm_reward(reward):
-    if reward > 0:
-        return 1
-    elif reward < 0:
-        return -1
-    else:
-        return 0
+    def add_memory(self, state, action, reward, next_state, terminal):
+        data = (state, action, reward, next_state, terminal)
 
+        if self._next_idx >= len(self._storage):
+            self._storage.append(data)
+        else:
+            self._storage[self._next_idx] = data
+        self._next_idx = (self._next_idx + 1) % self._maxsize
 
-def norm_action(action):
-    if action == 2:
-        return 0
-    else:
-        return 1
+    def _encode_sample(self, indices):
+        states, actions, rewards, next_states, terminals = [], [], [], [], []
+        for i in indices:
+            data = self._storage[i]
+            state, action, reward, next_state, terminal = data
+            states.append(np.array(state, copy=False))
+            actions.append(action)
+            rewards.append(reward)
+            next_states.append(np.array(next_state, copy=False))
+            terminals.append(terminal)
+        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(terminals)
 
-
-def replay(memory, main_network, target_network):
-    """
-    Performs minibatch sampling from replay memory, sets the Bellman target Q for each step, and
-    performs minibatch gradient descent.
-    """
-    loss = nn.HuberLoss(reduction='mean', delta=1.0)
-    main_network.train()
-    torch.set_grad_enabled(True)
-    states, actions, rewards, new_states, terminals = memory.get_minibatch()
-    argmax_q_main = main_network.get_highest_q_action(new_states)  # size N nparray
-    double_q = target_network.get_q_value_of_action(new_states, argmax_q_main)  # Nx1 nparray
-    target = rewards + main_network.gamma * double_q * (1 - terminals.astype(int))
-    predict = main_network.get_q_value_of_action(states, actions)
-    error = loss(input=torch.from_numpy(predict), target=torch.from_numpy(target))
-    error.requires_grad_()
-    main_network.optimizer.zero_grad()
-    error.backward()
-    main_network.optimizer.step()
-    return error
+    def sample(self, batch_size):
+        indices = np.random.randint(0, len(self._storage) - 1, size=batch_size)
+        return self._encode_sample(indices)
 
 
 class Atari(object):
-    def __init__(self, q_params, render_game):
-        if render_game:
-            self.env = gym.make(q_params['env_name'], render_mode='human')
+    def __init__(self, params):
+        if params['render_game']:
+            self.env = gym.make(params['env_name'], render_mode='human')
         else:
-            self.env = gym.make(q_params['env_name'])
-        self.env.seed(q_params["seed"])
+            self.env = gym.make(params['env_name'])
+        self.env.seed(params["seed"])
         self.env = NoopResetEnv(self.env, noop_max=30)
         self.env = MaxAndSkipEnv(self.env, skip=4)
         self.env = EpisodicLifeEnv(self.env)
@@ -93,56 +88,10 @@ class Atari(object):
         self.env = ClipRewardEnv(self.env)
         self.env = FrameStack(self.env, 4)
 
-        self.seq_size = 4
-        self.curr_frame = np.empty((1, 84, 84), dtype=np.uint8)
-        self.state = np.empty((self.seq_size, 84, 84), dtype=np.uint8)
-        self.last_lives = 0
-
-    def new_game(self):
-        first_frame = self.env.reset()
-        self.last_lives = 0
-        terminal_life_lost = True
-        grayscale_frame = grayscale(first_frame)
-        self.curr_frame = grayscale_frame
-        sequence_frames = np.repeat(grayscale_frame, self.seq_size, axis=0)
-        self.state = sequence_frames
-        return terminal_life_lost
-
-    def step(self, action):
-        next_frame, reward, terminal, info = self.env.step(action)
-        if info['lives'] < self.last_lives:
-            terminal_life_lost = True
-        else:
-            terminal_life_lost = terminal
-        self.last_lives = info['lives']
-        grayscale_frame = grayscale(next_frame)
-        self.curr_frame = grayscale_frame
-        next_state = np.concatenate((self.state[1:, :, :], grayscale_frame), axis=0)
-        self.state = next_state
-        return grayscale_frame, reward, terminal, terminal_life_lost
-
 
 class D2QStruct(torch.nn.Module):
     def __init__(self, params, observation_space, action_space):
         super().__init__()
-        self.reward = 0
-        self.gamma = 0.99
-        self.learning_rate = params['learning_rate']
-        self.weights = params['weights_path']
-        self.load_weights = params['load_weights']
-
-        # Annealing epsilon
-        self.epsilon_init = 1
-        self.epsilon_final = 0.01
-        self.epsilon_decay = 0.01
-        self.replay_start_size = params['replay_start']
-        self.anneal_frames = params['anneal_frames']
-        self.max_frames = params['max_frames']
-        self.slope = -(self.epsilon_init - self.epsilon_final) / self.anneal_frames
-        self.intercept = self.epsilon_init - self.slope * self.replay_start_size
-        self.slope_2 = -(self.epsilon_final - self.epsilon_decay) / (self.max_frames - self.anneal_frames
-                                                                     - self.replay_start_size)
-        self.intercept_2 = self.epsilon_decay - self.slope_2 * self.max_frames
 
         # Convolutional Layers
         self.convoluted = nn.Sequential(
@@ -159,243 +108,130 @@ class D2QStruct(torch.nn.Module):
             nn.Linear(in_features=256, out_features=action_space.n)
         )
 
-        # Updates
-        self.target = None  # Bellman equation target Q
-        self.action = None  # Action taken
-        self.optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
-
-        # Weights
-        if self.load_weights:
-            self.model = self.load_state_dict(torch.load(self.weights))
-            print("weights loaded")
-
     def forward(self, x):
-        """
-        Forward call through 4 convolution layers and final split linear layer for dueling.
-
-        Input: Grayscale normalized image tensor, mini-batches allowed. Dim: (N, C_in, H, W)
-
-        Output: (N, C_out, H, W) Tensor of q_values for each action
-        """
-        conv_out = self.conv(x).view(x.size()[0], -1)
-        return self.fc(conv_out)
-
-    def get_highest_q_action(self, state):
-        """
-        Does a forward call and returns the index of the action with the highest Q value given a
-        state. Meant to be used on the main CNN.
-
-        Input: State sequence of (self.seq_size) frames
-
-        Output: Index of best action in action list (int)
-        """
-        with torch.no_grad():
-            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 2)
-            if state.dim() == 3:  # if single state (1, 1, 2)
-                q_values = torch.flatten(q_values)  # (1, 1, 2) -> (2)
-                best_action_index = torch.argmax(q_values)  # (1)
-                return best_action_index.item()  # int
-            else:  # if batch of states (N, 1, 1, 2)
-                best_action_index = torch.argmax(q_values, dim=3, keepdim=True)  # (N, 1, 1, 1)
-                best_action_index = torch.flatten(best_action_index)  # (N)
-                return best_action_index.detach().cpu().numpy()  # size N nparray
-
-    def get_q_value_of_action(self, state, action_index):
-        """
-        Does a forward call and returns the Q value of an action at a specified index given a state
-        and an index. Meant to be used on the target CNN.
-
-        Input: State sequence of (self.seq_size) frames, int index of specified action OR
-        size (N,) nparray of indices
-
-        Output: Q value of specified action (float OR nparray of floats)
-        """
-        with torch.no_grad():
-            q_values = self.forward(state)  # (N, 4, 84, 84) -> (N, 1, 1, 2)
-            if state.dim() == 3:  # if single state (1, 1, 2)
-                q_values = torch.flatten(q_values)  # (1, 1, 2) -> (2)
-                return q_values[action_index].item()  # float
-            else:  # if batch of states (N, 1, 1, 2)
-                q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 2)
-                q_values = q_values.detach().cpu().numpy()  # Nx2 nparray
-                q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
-                return q_of_actions  # Nx1 nparray of floats
-
-    def choose_action(self, state, frame_num):
-        if frame_num < self.replay_start_size:
-            epsilon = self.epsilon_init
-        elif self.replay_start_size <= frame_num < self.replay_start_size + self.anneal_frames:
-            epsilon = self.slope * frame_num + self.intercept
-        else:
-            epsilon = self.slope_2 * frame_num + self.intercept_2
-
-        if random.uniform(0, 1) < epsilon:
-            return randint(2, 3)
-        else:
-            action_norm = self.get_highest_q_action(state)
-            if action_norm == 0:
-                return 2
-            else:
-                return 3
+        conv_out = self.convoluted(x).view(x.size()[0], -1)
+        return self.fully_connected(conv_out)
 
 
 class D2QAgent:
-    def __init__(self, atari, memory, params):
-        self.memory = memory
+    def __init__(self, atari, params):
+        self.memory = Memory(params['memory_size'])
         self.batch_size = params['batch_size']
         self.gamma = params['gamma']
-        self.main_network = D2QStruct(atari.env.observation_space)
+        self.device = params['device']
+        self.main_network = D2QStruct(params, atari.env.observation_space,
+                                      atari.env.action_space).to(self.device)
+        self.target_network = D2QStruct(params, atari.env.observation_space,
+                                        atari.env.action_space).to(self.device)
+        self.update_target_network()
+        self.target_network.eval()
+        self.optimizer = torch.optim.RMSprop(self.main_network.parameters(),
+                                             lr=params['learning_rate'])
 
+    def update_target_network(self):
+        self.target_network.load_state_dict(self.main_network.state_dict())
 
-class Memory(object):
-    def __init__(self, size=500000, frame_h=84, frame_w=84, batch_size=32, seq_size=4):
-        self.counter = 0
-        self.current = 0
-        self.size = size  # computer may have overcommitting problems with large sizes
-        self.frame_h = frame_h
-        self.frame_w = frame_w
-        self.batch_size = batch_size
-        self.seq_size = seq_size
+    def compute_loss(self):
+        device = self.device
+        states, actions, rewards, next_states, terminals = self.memory.sample(self.batch_size)
+        states = np.array(states) / 255.0
+        next_states = np.array(next_states) / 255.0
+        states = torch.from_numpy(states).float().to(device)
+        actions = torch.from_numpy(actions).long().to(device)
+        rewards = torch.from_numpy(rewards).float().to(device)
+        next_states = torch.from_numpy(next_states).float().to(device)
+        terminals = torch.from_numpy(terminals).float().to(device)
 
-        self.frames = np.empty((self.size, self.frame_h, self.frame_w), dtype=np.uint8)
-        self.actions = np.empty(self.size, dtype=np.int32)
-        self.rewards = np.empty(self.size, dtype=np.float32)
-        self.terminals = np.empty(self.size, dtype=bool)
+        with torch.no_grad():
+            _, max_next_action = self.main_network(next_states).max(1)
+            max_next_q_values = self.target_network(next_states).gather(1, max_next_action.unsqueeze(1)).squeeze()
+            target_q_values = rewards + (1 - terminals) * self.gamma * max_next_q_values
 
-        self.states = np.empty((self.batch_size, self.seq_size,
-                                self.frame_h, self.frame_w), dtype=np.uint8)  # Dim: (32, 4, 200, 200)
-        self.new_states = np.empty((self.batch_size, self.seq_size,
-                                    self.frame_h, self.frame_w), dtype=np.uint8)  # Dim: (32, 4, 200, 200)
-        # List of indices to slice out of the memory
-        self.indices = np.empty(self.batch_size, dtype=np.int32)
+        input_q_values = self.main_network(states)
+        input_q_values = input_q_values.gather(1, actions.unsqueeze(1)).squeeze()
 
-    # Should be easily called every frame
-    def add_memory(self, frame, action, reward, is_terminal):
-        self.frames[self.current, ...] = frame
-        self.actions[self.current] = action
-        self.rewards[self.current] = reward
-        self.terminals[self.current] = is_terminal
-        self.counter = max(self.counter, self.current + 1)
-        self.current = (self.current + 1) % self.size
+        loss = F.smooth_l1_loss(input_q_values, target_q_values)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        del states
+        del next_states
+        return loss.item()
 
-    # A state is composed of four frames: (4, 84, 84) tensor
-    def get_state(self, index):
-        if self.counter == 0 or index < self.seq_size - 1:
-            pass
-        else:
-            return self.frames[index - self.seq_size + 1: index + 1, ...]
-
-    # Pick random valid indices to slice out of the memory
-    def get_indices(self):
-        for i in range(self.batch_size):
-            while True:
-                index = random.randint(self.seq_size, self.counter - 1)
-                if index < self.seq_size:
-                    continue
-                if index >= self.current >= index - self.seq_size:
-                    continue
-                if self.terminals[index - self.seq_size:index].any():
-                    continue
-                break
-            self.indices[i] = index
-
-    # Use the randomly picked indices to slice out states and next states to be stored
-    # in network fields
-    def get_minibatch(self):
-        if self.counter < self.seq_size:
-            pass
-        self.get_indices()
-        for i, idx in enumerate(self.indices):
-            self.states[i] = self.get_state(idx - 1)
-            self.new_states[i] = self.get_state(idx)
-        if torch.cuda.is_available():
-            return torch.div(torch.from_numpy(self.states).cuda(), 255), self.actions[self.indices], self.rewards[
-                self.indices], \
-                   torch.div(torch.from_numpy(self.new_states).cuda(), 255), self.terminals[self.indices]
-        return torch.div(torch.from_numpy(self.states), 255), self.actions[self.indices], self.rewards[self.indices], \
-               torch.div(torch.from_numpy(self.new_states), 255), self.terminals[self.indices]
+    def choose_action(self, state):
+        device = self.device
+        state = np.array(state) / 255.0
+        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        with torch.no_grad():
+            q_values = self.main_network(state)
+            _, action = q_values.max(1)
+            return action.item()
 
 
 def training():
-
+    # Initialize parameters
     q_params = init_params()
-
-    # Initialize memory and networks
-    replay_memory = Memory()
-    main_network = D3QAgent(q_params)
-    main_network = main_network.to(DEVICE)
-    target_network = D3QAgent(q_params)
-    target_network = target_network.to(DEVICE)
-    target_network.load_state_dict(main_network.state_dict())
-
-    # Initialize tracking quantities
-    avg_episode_loss = []
-    episode_rewards = []
-    frame = 0
-    max_frame = q_params['max_frames']
-    epoch_max_frame = q_params['epoch_max_frame']
-    episode_max_frame = q_params['episode_max_frame']
-    episode_num = 0
 
     # Initialize atari game
     # pip3 install gym[atari,accept-rom-license]==0.21.0
-    env_name = "ALE/Pong-v5"
-    render_game = False
-    atari = Atari(env_name, render_game)
+    atari = Atari(q_params)
     print("The environment has the following {} actions: {}".format(atari.env.action_space.n,
                                                                     atari.env.unwrapped.get_action_meanings()))
+
+    # Initialize double q network
+    d2q = D2QAgent(atari, q_params)
+
+    # Initialize tracking quantities
+    avg_episode_loss = [0.0]
+    episode_losses = [0.0]
+    episode_rewards = [0.0]
+    epsilon_frames = q_params['e_scale_factor'] * float(q_params['max_frames'])
+
     try:
-        while frame < max_frame:
-            epoch_frame = 0
-            while epoch_frame < epoch_max_frame:
-                terminal_life_lost = atari.new_game()
-                episode_reward = 0
-                episode_loss = []
-                for i in range(episode_max_frame):
-                    if torch.cuda.is_available():
-                        curr_state = torch.div(torch.from_numpy(atari.state).cuda(), 255)
-                    else:
-                        curr_state = torch.div(torch.from_numpy(atari.state), 255)
-                    action = main_network.choose_action(curr_state, frame)
-                    next_frame, reward, terminal, terminal_life_lost = atari.step(action)
-                    frame += 1
-                    epoch_frame += 1
-                    # normed_reward = norm_reward(reward)
-                    normed_action = norm_action(action)
-                    episode_reward += reward
-                    replay_memory.add_memory(next_frame, normed_action, reward, terminal_life_lost)
+        state = atari.env.reset()
+        for frame in range(q_params['max_frames']):
+            fraction = min(1.0, float(frame) / epsilon_frames)
+            epsilon = q_params['epsilon_init'] + fraction * \
+                            (q_params['epsilon_final'] - q_params['epsilon_init'])
 
-                    # Perform gradient descent
-                    loss = 0
-                    if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
-                        loss = replay(replay_memory, main_network, target_network)
-                        if torch.is_tensor(loss):
-                            loss = loss.item()
-                    episode_loss.append(loss)
+            prob = random.random()
+            if prob < epsilon:
+                action = atari.env.action_space.sample()
+            else:
+                action = d2q.choose_action(state)
 
-                    # Update target network
-                    if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
-                        target_network.load_state_dict(main_network.state_dict())
+            next_state, reward, terminal, info = atari.env.step(action)
+            d2q.memory.add_memory(state, action, reward, next_state, float(terminal))
+            state = next_state
+            episode_rewards[-1] += reward
 
-                    if terminal:
-                        break
+            if terminal:
+                state = atari.env.reset()
+                avg_episode_loss[-1] += statistics.mean(episode_losses)
+                print('------------------------')
+                print('Frame: ' + str(frame))
+                print('Episode: ' + str(len(episode_rewards)))
+                print('Episode Reward: ' + str(episode_rewards[-1]))
+                print('Episode Avg Loss: ' + str(avg_episode_loss[-1]))
+                episode_losses = [0.0]
+                avg_episode_loss.append(0.0)
+                episode_rewards.append(0.0)
 
-                episode_num += 1
-                episode_rewards.append(episode_reward)
-                avg_episode_loss.append(np.mean(episode_loss))
-                print('---------------------------------')
-                print(f'Frame {frame}')
-                print(f'Game {episode_num}')
-                print('Episode Reward: ' + str(episode_reward))
-                print('Episode Loss: ' + str(np.mean(episode_loss)))
-        return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
+            if frame > q_params['replay_start'] and frame % q_params['m_update_frequency'] == 0:
+                loss = d2q.compute_loss()
+                episode_losses.append(loss)
+
+            if frame > q_params['replay_start'] and frame % q_params['t_update_frequency'] == 0:
+                d2q.update_target_network()
+        return episode_rewards, avg_episode_loss, d2q.main_network.state_dict()
+
     except KeyboardInterrupt:
         print('Interrupted')
-        return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
+        return episode_rewards, avg_episode_loss, d2q.main_network.state_dict()
 
 
-def plotter(episode_num, episode_rewards, avg_episode_loss):
-    episodes = np.arange(1, episode_num + 1)
+def plotter(episode_rewards, avg_episode_loss):
+    episodes = np.arange(1, len(episode_rewards) + 1)
     plt.plot(episodes, avg_episode_loss)
     plt.xlabel('Episode')
     plt.ylabel('Huber Loss')
@@ -408,9 +244,9 @@ def plotter(episode_num, episode_rewards, avg_episode_loss):
 
 
 if __name__ == '__main__':
-        episode_num, episode_rewards, avg_episode_loss, main_network_weights = training()
-        torch.save(main_network_weights, 'atari_weights.pt')
-        plotter(episode_num, episode_rewards, avg_episode_loss)
+    episode_rewards, avg_episode_loss, main_network_weights = training()
+    torch.save(main_network_weights, 'atari_weights_2.pt')
+    plotter(episode_rewards, avg_episode_loss)
 
 
 
