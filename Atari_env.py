@@ -295,6 +295,7 @@ class Memory(object):
 
 
 def training():
+
     q_params = Q_params.params_Q
 
     # Initialize memory and networks
@@ -311,74 +312,83 @@ def training():
     max_frame = q_params['max_frames']
     epoch_max_frame = 100000
     episode_num = 0
-    episode_max_frame = 20000
+    episode_max_frame = 18000
 
     # Initialize atari game
     # pip3 install gym[atari,accept-rom-license]==0.21.0
     env_name = "ALE/Pong-v5"
-    render_game = True
+    render_game = False
     atari = Atari(env_name, render_game)
     print("The environment has the following {} actions: {}".format(atari.env.action_space.n,
                                                                     atari.env.unwrapped.get_action_meanings()))
+    try:
+        while frame < max_frame:
+            epoch_frame = 0
+            while epoch_frame < epoch_max_frame:
+                terminal_life_lost = atari.new_game()
+                episode_reward = 0
+                episode_loss = []
+                for i in range(episode_max_frame):
+                    if torch.cuda.is_available():
+                        curr_state = torch.div(torch.from_numpy(atari.state).cuda(), 255)
+                    else:
+                        curr_state = torch.div(torch.from_numpy(atari.state), 255)
+                    action = main_network.choose_action(curr_state, frame)
+                    next_frame, reward, terminal, terminal_life_lost = atari.step(action)
+                    frame += 1
+                    epoch_frame += 1
+                    normed_reward = norm_reward(reward)
+                    episode_reward += normed_reward
+                    replay_memory.add_memory(next_frame, action, normed_reward, terminal_life_lost)
 
-    while frame < max_frame:
-        epoch_frame = 0
-        while epoch_frame < epoch_max_frame:
-            terminal_life_lost = atari.new_game()
-            episode_reward = 0
-            episode_loss = []
-            for i in range(episode_max_frame):
-                if torch.cuda.is_available():
-                    curr_state = torch.div(torch.from_numpy(atari.state).cuda(), 255)
-                else:
-                    curr_state = torch.div(torch.from_numpy(atari.state), 255)
-                action = main_network.choose_action(curr_state, frame)
-                next_frame, reward, terminal, terminal_life_lost = atari.step(action)
-                frame += 1
-                epoch_frame += 1
-                normed_reward = norm_reward(reward)
-                episode_reward += normed_reward
-                replay_memory.add_memory(next_frame, action, normed_reward, terminal_life_lost)
+                    # Perform gradient descent
+                    loss = 0
+                    if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
+                        loss = replay(replay_memory, main_network, target_network)
+                        if torch.is_tensor(loss):
+                            loss = loss.item()
+                    episode_loss.append(loss)
 
-                # Perform gradient descent
-                loss = 0
-                if frame % q_params['update_frequency'] == 0 and frame > q_params['replay_start']:
-                    loss = replay(replay_memory, main_network, target_network)
-                    if torch.is_tensor(loss):
-                        loss = loss.item()
-                episode_loss.append(loss)
+                    # Update target network
+                    if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
+                        target_network.load_state_dict(main_network.state_dict())
 
-                # Update target network
-                if frame % q_params['net_update_frequency'] == 0 and frame > q_params['replay_start']:
-                    target_network.load_state_dict(main_network.state_dict())
+                    if terminal:
+                        break
 
-                if terminal:
-                    break
+                    if not loss == 0:
+                        print(loss)
 
-                if not loss == 0:
-                    print(loss)
-
-            episode_num += 1
-            episode_rewards.append(episode_reward)
-            avg_episode_loss.append(sum(episode_loss) / len(episode_loss))
-            print(f'Frame {frame}')
-            print(f'Game {episode_num}')
-            print('Episode Reward: ' + str(episode_reward))
-    return episode_num, episode_rewards, avg_episode_loss
+                episode_num += 1
+                episode_rewards.append(episode_reward)
+                avg_episode_loss.append(np.mean(episode_loss))
+                print(f'Frame {frame}')
+                print(f'Game {episode_num}')
+                print('Episode Reward: ' + str(episode_reward))
+        return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        return episode_num, episode_rewards, avg_episode_loss, main_network.state_dict()
 
 
 def plotter(episode_num, episode_rewards, avg_episode_loss):
-    plt.plot(episode_num, avg_episode_loss)
+    episodes = np.arange(1, episode_num + 1)
+    plt.plot(episodes, avg_episode_loss)
     plt.xlabel('Episode')
     plt.ylabel('Huber Loss')
     plt.show()
 
-    plt.plot(episode_num, episode_rewards)
+    plt.plot(episodes, episode_rewards)
     plt.xlabel('Episode')
     plt.ylabel('Rewards')
     plt.show()
 
 
 if __name__ == '__main__':
-    episode_num, episode_rewards, avg_episode_loss = training()
-    plotter(episode_num, episode_rewards, avg_episode_loss)
+    if __name__ == '__main__':
+        episode_num, episode_rewards, avg_episode_loss, main_network_weights = training()
+        torch.save(main_network_weights, 'atari_weights.pt')
+        plotter(episode_num, episode_rewards, avg_episode_loss)
+
+
+

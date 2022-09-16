@@ -152,7 +152,7 @@ class D3QAgent(torch.nn.Module):
 
 
 class Memory(object):
-    def __init__(self, size=500000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
+    def __init__(self, size=800000, frame_h=200, frame_w=200, batch_size=32, seq_size=4):
         self.counter = 0
         self.current = 0
         self.size = size  # computer may have overcommitting problems with large sizes
