@@ -10,6 +10,9 @@ import statistics
 import matplotlib.pyplot as plt
 import gym
 from Atari_wrappers import *
+from gym import spaces
+import cv2
+cv2.ocl.setUseOpenCL(False)
 
 
 def init_params():
@@ -90,8 +93,10 @@ class Atari(object):
 
 
 class D2QStruct(torch.nn.Module):
-    def __init__(self, params, observation_space, action_space):
+    def __init__(self, atari):
         super().__init__()
+        observation_space = atari.env.observation_space
+        action_space = atari.env.action_space
 
         # Convolutional Layers
         self.convoluted = nn.Sequential(
@@ -119,10 +124,8 @@ class D2QAgent:
         self.batch_size = params['batch_size']
         self.gamma = params['gamma']
         self.device = params['device']
-        self.main_network = D2QStruct(params, atari.env.observation_space,
-                                      atari.env.action_space).to(self.device)
-        self.target_network = D2QStruct(params, atari.env.observation_space,
-                                        atari.env.action_space).to(self.device)
+        self.main_network = D2QStruct(atari).to(self.device)
+        self.target_network = D2QStruct(atari).to(self.device)
         self.update_target_network()
         self.target_network.eval()
         self.optimizer = torch.optim.RMSprop(self.main_network.parameters(),
@@ -226,7 +229,7 @@ def training():
         return episode_rewards, avg_episode_loss, d2q.main_network.state_dict()
 
     except KeyboardInterrupt:
-        print('Interrupted')
+        print('Interrupted!')
         return episode_rewards, avg_episode_loss, d2q.main_network.state_dict()
 
 
