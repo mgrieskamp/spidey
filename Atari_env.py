@@ -20,7 +20,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import gym
 import imageio
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+# DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cpu'
 
 
 def init_params():
@@ -28,7 +29,7 @@ def init_params():
     q_params['learning_rate'] = 0.00025
     q_params['update_frequency'] = 4
     q_params['net_update_frequency'] = 10000
-    q_params['replay_start'] = 50
+    q_params['replay_start'] = 50000
     q_params['anneal_frames'] = 1000000
     q_params['episode_max_frame'] = 18000
     q_params['epoch_max_frame'] = 200000
@@ -230,9 +231,6 @@ class D3QAgent(torch.nn.Module):
                 q_values = torch.flatten(q_values, start_dim=1, end_dim=3)  # (N, 2)
                 q_values = q_values.detach().cpu().numpy()  # Nx2 nparray
                 q_of_actions = q_values[range(q_values.shape[0]), action_index.tolist()]
-                print('actions: ', action_index)
-                print('q_values: ', q_values)
-                print('q of actions: ', q_of_actions)
                 return q_of_actions  # Nx1 nparray of floats
 
     def choose_action(self, state, frame_num):
@@ -332,6 +330,7 @@ def training():
     main_network = main_network.to(DEVICE)
     target_network = D3QAgent(q_params)
     target_network = target_network.to(DEVICE)
+    target_network.load_state_dict(main_network.state_dict())
 
     # Initialize tracking quantities
     avg_episode_loss = []
