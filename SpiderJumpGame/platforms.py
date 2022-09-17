@@ -1,12 +1,13 @@
 import pygame
 from pygame.locals import *
 import params
+import os
 
 
 class Platform(pygame.sprite.Sprite):
     def __init__(self, rng):
         super().__init__()
-        self.image = pygame.image.load('wood_platform.png')
+        self.image = pygame.image.load(os.path.join('SpiderJumpGame', 'wood_platform.png'))
         self.image.set_colorkey((0,0,0))
         self.width = rng.integers(65, 101)
         self.surf = pygame.transform.scale(self.image, (self.width, 12))

@@ -6,13 +6,16 @@ import platforms
 import params
 import time
 import itertools
+import os
+import numpy as np
 
 pygame.init()
 vec = pygame.math.Vector2  # 2 for two dimensional
+rng = np.random.default_rng(seed=2023)
 
 FramePerSec = pygame.time.Clock()
 
-brick = pygame.image.load("background.png")
+brick = pygame.image.load(os.path.join('SpiderJumpGame', 'background.png'))
 displaysurface = pygame.display.set_mode((params.WIDTH, params.HEIGHT))
 pygame.display.set_caption("Game")
 
@@ -26,9 +29,9 @@ def set_background():
 
 # Initiate player and starting platform
 spider = player.Player()
-plat_image = pygame.image.load('wood_platform.png')
+plat_image = pygame.image.load(os.path.join('SpiderJumpGame', 'wood_platform.png'))
 plat_image.set_colorkey((0,0,0))
-platform1 = platforms.Platform()
+platform1 = platforms.Platform(rng)
 platform1.surf = pygame.transform.scale(plat_image, (params.WIDTH, 20))
 platform1.rect = platform1.surf.get_rect(center=(params.WIDTH / 2, params.HEIGHT - 10))
 platform1.moving = False
@@ -46,10 +49,10 @@ plats.add(platform1)
 
 # Initialize starting screen random platforms
 for x in range(7):
-    pl = platforms.Platform()
+    pl = platforms.Platform(rng)
     close = True
     while close:
-        pl = platforms.Platform()
+        pl = platforms.Platform(rng)
         close = platforms.check(pl, plats)
     plats.add(pl)
     play_plats.add(pl)
@@ -92,7 +95,7 @@ while running:
                 pl.kill()
 
     # Generate new random platforms as player moves up
-    platforms.plat_gen(plats, all_sprites, play_plats)
+    platforms.plat_gen(plats, all_sprites, play_plats, rng)
 
     # Set game font and display game score
     game_font_type = pygame.font.SysFont("Verdana", 20)

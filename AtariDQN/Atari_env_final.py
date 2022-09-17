@@ -229,7 +229,7 @@ def plotter(episode_rewards, avg_episode_loss):
     episodes = np.arange(1, len(episode_rewards) + 1)
     plt.plot(episodes, avg_episode_loss)
     plt.xlabel('Episode')
-    plt.ylabel('Huber Loss')
+    plt.ylabel('Smooth L1 Loss')
     plt.show()
 
     plt.plot(episodes, episode_rewards)

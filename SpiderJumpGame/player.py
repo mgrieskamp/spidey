@@ -2,6 +2,7 @@ import pygame
 from pygame.locals import *
 import params
 import spritesheet
+import os
 
 vec = pygame.math.Vector2
 
@@ -10,7 +11,7 @@ class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
         # Player appearance
-        self.spritesheet_image = pygame.image.load('spider_spritesheet.png').convert_alpha()
+        self.spritesheet_image = pygame.image.load(os.path.join('SpiderJumpGame', 'spider_spritesheet.png')).convert_alpha()
         self.spritesheet = spritesheet.SpriteSheet(self.spritesheet_image)
         self.surf = self.spritesheet.get_image(0, 0, 32, 32, 3)
         self.rect = self.surf.get_rect()
@@ -202,7 +203,7 @@ class Player(pygame.sprite.Sprite):
                 if self.pos.y < hits[0].rect.bottom:
                     if hits[0].point == True:  # suspicious reference
                         hits[0].point = False
-                        hits[0].image = pygame.image.load('visited_platform.png')
+                        hits[0].image = pygame.image.load(os.path.join('SpiderJumpGame', 'visited_platform.png'))
                         hits[0].surf = pygame.transform.scale(hits[0].image, (hits[0].width, 12))
                         self.score += 1
                         self.new_landing = True
