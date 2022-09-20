@@ -3,8 +3,7 @@
 This is a collection of experiments implementing a double-dueling Deep Q Learning Network with experience replay
 inspired by DeepMind's papers. 
 
-The AtariDQN folder contains architectures we tried to train to play Atari Pong. The Archive
-folder contains unsuccessful attempts, while "Atari_env_final.py" is the working model. 
+The AtariDQN folder contains architectures we tried to train to play Atari Pong. The "Atari_env.py" is a different architecture that we found unsuccessful, while "Atari_env_final.py" is the working model. 
 
 In addition to Pong, we are currently experimenting with training a DQN model to play an infinite vertical
 platformer game "SpiderJump" that we created. We have not yet found a successful architecture/hyperparameter combination.
